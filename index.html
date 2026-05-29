@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2d6a4f">
+  <meta name="description" content="Household grocery inventory with receipt scanning and meal recommendations">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.anthropic.com; img-src 'self' blob: data:; script-src 'self';">
+  <title>My Kitchen</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="app-header">
+  <h1>🍳 My Kitchen</h1>
+  <button class="btn-icon" id="settings-open-btn" title="Settings" aria-label="Settings">⚙️</button>
+</header>
+
+<!-- ── Main content ── -->
+<main class="app-main">
+
+  <!-- Onboarding banner (shown if no API key) -->
+  <div id="onboarding-banner" class="onboarding-banner" hidden>
+    <p><strong>Welcome to My Kitchen!</strong><br>
+       To use receipt scanning and meal recommendations, add your Anthropic API key.</p>
+    <button class="btn-primary" id="onboarding-setup-btn">Set Up API Key</button>
+  </div>
+
+  <!-- ── Inventory tab ── -->
+  <div id="tab-inventory" class="tab-panel">
+    <div class="inventory-toolbar">
+      <input type="search" id="inventory-search" class="search-input" placeholder="Search items…" autocomplete="off">
+    </div>
+    <div id="inventory-list"></div>
+  </div>
+
+  <!-- ── Scanner tab ── -->
+  <div id="tab-scanner" class="tab-panel" hidden>
+    <div class="section-title">Scan Receipt</div>
+    <div class="section-sub">Take a photo or upload a receipt image. Claude will extract items and add them to your inventory.</div>
+
+    <!-- Status message -->
+    <div id="scan-status" class="scan-status" hidden></div>
+
+    <!-- Upload section -->
+    <div id="scan-upload-section">
+      <img id="receipt-preview" class="receipt-preview" alt="Receipt preview" hidden>
+      <div class="scan-drop-zone" id="scan-drop-zone">
+        <div class="drop-icon">📷</div>
+        <p>Tap to take a photo or choose an image</p>
+        <p class="drop-hint">Supports JPG, PNG, HEIC</p>
+      </div>
+      <input type="file" id="receipt-file" accept="image/*" capture="environment" hidden>
+      <button class="btn-primary" id="upload-btn">📷 Take Photo / Choose Image</button>
+    </div>
+
+    <!-- Loading section -->
+    <div id="scan-loading-section" hidden>
+      <div class="scan-loading">
+        <div class="spinner"></div>
+        <p>Analyzing receipt…</p>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:6px">This may take a few seconds</p>
+      </div>
+    </div>
+
+    <!-- Results section -->
+    <div id="scan-results-section" hidden>
+      <div class="parsed-results-header">
+        <span class="section-title">Review Items</span>
+        <span id="parsed-count" class="parsed-count"></span>
+      </div>
+      <p class="section-sub">Uncheck any items you don't want to add.</p>
+      <div id="parsed-items-list"></div>
+      <div class="scan-actions">
+        <button class="btn-primary" id="confirm-save-btn">Save to Inventory</button>
+        <button class="btn-secondary" id="confirm-all-btn">Select All</button>
+        <button class="btn-secondary" id="retry-scan-btn">Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Recommendations tab ── -->
+  <div id="tab-recommendations" class="tab-panel" hidden>
+    <div class="section-title">Meal Ideas</div>
+    <p class="recs-intro">Claude will suggest meals based on your oldest inventory items — helping you use things up before they expire.</p>
+
+    <div id="recs-error" class="recs-error" hidden></div>
+
+    <button class="btn-primary" id="get-recs-btn">✨ Get Meal Suggestions</button>
+
+    <div id="recs-spinner" class="recs-spinner" hidden>
+      <div class="spinner"></div>
+    </div>
+
+    <div id="recs-output" class="recs-output" hidden></div>
+  </div>
+
+</main>
+
+<!-- ── FAB (Inventory only) ── -->
+<button class="fab" id="fab-add" title="Add item" aria-label="Add item">+</button>
+
+<!-- ── Bottom nav ── -->
+<nav class="app-nav">
+  <button class="nav-btn active" data-tab="inventory">
+    <span class="nav-icon">🧺</span>
+    <span>Pantry</span>
+  </button>
+  <button class="nav-btn" data-tab="scanner">
+    <span class="nav-icon">📷</span>
+    <span>Scan</span>
+  </button>
+  <button class="nav-btn" data-tab="recommendations">
+    <span class="nav-icon">🍽️</span>
+    <span>Ideas</span>
+  </button>
+</nav>
+
+<!-- ── Item modal ── -->
+<div id="item-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Add Item</span>
+      <button class="btn-icon" id="modal-close" aria-label="Close">✕</button>
+    </div>
+    <form id="item-form" novalidate>
+      <input type="hidden" id="item-id">
+      <div class="form-group">
+        <label class="form-label" for="item-name-input">Item Name *</label>
+        <input class="form-input" id="item-name-input" type="text" placeholder="e.g. Cheddar Cheese" required autocomplete="off">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="item-qty-input">Quantity</label>
+          <input class="form-input" id="item-qty-input" type="text" placeholder="1" inputmode="decimal">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="item-unit-input">Unit</label>
+          <input class="form-input" id="item-unit-input" type="text" placeholder="each">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="item-category-input">Category</label>
+        <select class="form-select" id="item-category-input">
+          <option value="produce">🥦 Produce</option>
+          <option value="dairy">🥛 Dairy</option>
+          <option value="meat">🥩 Meat</option>
+          <option value="bakery">🍞 Bakery</option>
+          <option value="frozen">🧊 Frozen</option>
+          <option value="beverages">🥤 Beverages</option>
+          <option value="pantry">🫙 Pantry</option>
+          <option value="household">🧹 Household</option>
+          <option value="other" selected>📦 Other</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="item-purchase-input">Purchase Date</label>
+          <input class="form-input" id="item-purchase-input" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="item-expiration-input">Expiration Date</label>
+          <input class="form-input" id="item-expiration-input" type="date">
+        </div>
+      </div>
+      <button class="btn-primary" type="submit" style="width:100%;margin-top:4px">Save Item</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Settings modal ── -->
+<div id="settings-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title" id="settings-title">Settings</span>
+      <button class="btn-icon" id="settings-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="settings-api-key">Anthropic API Key</label>
+      <input class="form-input settings-key-input" id="settings-api-key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+      <p class="settings-key-note">Your key is stored locally on this device only and is never sent anywhere except directly to api.anthropic.com.</p>
+    </div>
+    <button class="btn-primary" id="settings-save-btn" style="width:100%">Save Key</button>
+  </div>
+</div>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
