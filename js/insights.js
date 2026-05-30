@@ -184,6 +184,10 @@ function renderWasteLog() {
           <span class="waste-meta">${escapeHtml(h.qty)} ${escapeHtml(h.unit)} · ${h.date}</span>
         </div>
         <span class="waste-price ${h.price ? 'waste-price-set' : ''}">${h.price ? fmt(h.price) : '—'}</span>
+        <div class="waste-confirm-bar" hidden>
+          <button class="btn-confirm-yes waste-confirm-yes">✓ Remove</button>
+          <button class="btn-confirm-no waste-confirm-no">✕</button>
+        </div>
       </div>`;
   }).join('');
 
@@ -192,21 +196,28 @@ function renderWasteLog() {
 
 const LONG_PRESS_MS = 500;
 
+function cancelAllWasteConfirms() {
+  document.querySelectorAll('.waste-item.confirming').forEach((el) => {
+    el.classList.remove('confirming', 'long-press-active');
+    el.querySelector('.waste-confirm-bar').hidden = true;
+  });
+}
+
 function attachWasteLogLongPress(container) {
   let timer = null;
   let target = null;
 
   function start(el) {
+    if (el.classList.contains('confirming')) return;
     target = el;
     el.classList.add('long-press-active');
     timer = setTimeout(() => {
+      cancelAllWasteConfirms();
       el.classList.remove('long-press-active');
-      el.classList.add('long-press-removing');
-      setTimeout(() => {
-        deleteHistoryEntry(el.dataset.id);
-        renderWasteLog();
-        renderKPIs();
-      }, 250);
+      el.classList.add('confirming');
+      el.querySelector('.waste-confirm-bar').hidden = false;
+      target = null;
+      timer = null;
     }, LONG_PRESS_MS);
   }
 
@@ -223,6 +234,19 @@ function attachWasteLogLongPress(container) {
     item.addEventListener('mouseup',     cancel);
     item.addEventListener('mouseleave',  cancel);
     item.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    item.querySelector('.waste-confirm-yes').addEventListener('click', () => {
+      item.classList.add('long-press-removing');
+      setTimeout(() => {
+        deleteHistoryEntry(item.dataset.id);
+        renderWasteLog();
+        renderKPIs();
+      }, 250);
+    });
+
+    item.querySelector('.waste-confirm-no').addEventListener('click', () => {
+      cancelAllWasteConfirms();
+    });
   });
 }
 
