@@ -160,24 +160,61 @@ body {
   background: var(--surface);
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
   margin-bottom: 6px;
-  transition: box-shadow 0.15s, opacity 0.15s;
-  cursor: pointer;
+  position: relative;
+  overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  touch-action: manipulation;
-  position: relative;
-  flex-wrap: wrap;
 }
-.item-card:hover { box-shadow: var(--shadow); }
-.item-card.pressing { opacity: 0.6; }
 .item-card.expired { border-color: var(--red); background: #fff5f5; }
 .item-card.expiring-soon { border-color: var(--yellow); background: #fffbf0; }
+
+/* Sliding face — the visible card content */
+.card-face {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: inherit;
+  transform: translateX(0);
+  transition: transform 0.22s cubic-bezier(.25,.8,.25,1);
+  flex-wrap: wrap;
+  width: 100%;
+  cursor: pointer;
+}
+
+/* Action buttons revealed on swipe-left */
+.card-actions-left {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+  z-index: 0;
+}
+.swa-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  gap: 3px;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.swa-btn span { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.02em; }
+.swa-finish { background: #d8f3dc; color: #2d6a4f; }
+.swa-used   { background: #fff3e0; color: #e07000; }
+.swa-waste  { background: #ffe8e8; color: var(--red); }
+.swa-delete { background: #f0f0f0; color: var(--text-muted); }
+.swa-btn:active { filter: brightness(0.92); }
 
 .item-cat { font-size: 1.5rem; flex-shrink: 0; }
 .item-info { flex: 1; min-width: 0; }
