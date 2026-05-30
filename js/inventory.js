@@ -92,6 +92,16 @@ function renderInventory(filter = '') {
     groups[id].push(item);
   }
 
+  // Sort each category by expiration date ascending; no date goes last
+  for (const id of Object.keys(groups)) {
+    groups[id].sort((a, b) => {
+      if (!a.expirationDate && !b.expirationDate) return 0;
+      if (!a.expirationDate) return 1;
+      if (!b.expirationDate) return -1;
+      return a.expirationDate.localeCompare(b.expirationDate);
+    });
+  }
+
   container.innerHTML = Object.keys(groups)
     .sort()
     .map((id) => {
