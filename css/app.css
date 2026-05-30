@@ -533,6 +533,15 @@ body {
 .waste-item + .waste-item { border-top: 1px solid var(--border); }
 .waste-item.long-press-active { background: rgba(0,0,0,0.08); }
 .waste-item.long-press-removing { opacity: 0; }
+.waste-item.confirming { background: var(--surface-alt); flex-wrap: wrap; }
+.waste-confirm-bar {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 8px;
+  animation: slideDown 0.15s ease;
+}
 
 /* ── Settings ── */
 .settings-key-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
