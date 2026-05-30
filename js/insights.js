@@ -216,7 +216,7 @@ function attachWasteLogLongPress(container) {
   }
 
   container.querySelectorAll('.waste-item').forEach((item) => {
-    item.addEventListener('touchstart',  () => start(item), { passive: true });
+    item.addEventListener('touchstart',  (e) => { e.preventDefault(); start(item); }, { passive: false });
     item.addEventListener('touchend',    cancel);
     item.addEventListener('touchmove',   cancel, { passive: true });
     item.addEventListener('mousedown',   () => start(item));
