@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Red body -->
+  <ellipse cx="50" cy="62" rx="38" ry="34" fill="#d62828"/>
+  <!-- Black head -->
+  <circle cx="50" cy="24" r="20" fill="#1a1a1a"/>
+  <!-- Center wing line -->
+  <rect x="48" y="29" width="4" height="64" rx="2" fill="#1a1a1a"/>
+  <!-- Spots: upper pair -->
+  <circle cx="33" cy="54" r="9" fill="#1a1a1a"/>
+  <circle cx="67" cy="54" r="9" fill="#1a1a1a"/>
+  <!-- Spots: lower pair -->
+  <circle cx="35" cy="76" r="7" fill="#1a1a1a"/>
+  <circle cx="65" cy="76" r="7" fill="#1a1a1a"/>
+  <!-- Eyes -->
+  <circle cx="43" cy="21" r="5" fill="white"/>
+  <circle cx="57" cy="21" r="5" fill="white"/>
+  <circle cx="44" cy="22" r="2.5" fill="#1a1a1a"/>
+  <circle cx="58" cy="22" r="2.5" fill="#1a1a1a"/>
+</svg>

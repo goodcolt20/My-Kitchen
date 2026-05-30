@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `my-kitchen-${CACHE_VERSION}`;
 const APP_SHELL = [
   '/',
@@ -7,12 +7,15 @@ const APP_SHELL = [
   '/css/app.css',
   '/js/db.js',
   '/js/api.js',
+  '/js/categories.js',
+  '/js/barcode.js',
   '/js/inventory.js',
   '/js/scanner.js',
   '/js/recommendations.js',
   '/js/app.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/favicon.svg',
 ];
 
 self.addEventListener('install', (e) => {
