@@ -106,6 +106,33 @@
     <div id="recs-output" class="recs-output" hidden></div>
   </div>
 
+  <!-- ── Shopping list tab ── -->
+  <div id="tab-shopping" class="tab-panel" hidden>
+    <div class="section-title">Shopping List</div>
+
+    <!-- Add item row -->
+    <div class="shop-add-row">
+      <input id="shop-input" class="shop-input" placeholder="Add an item…" autocomplete="off" type="text">
+      <button id="shop-add-btn" class="shop-add-btn">Add</button>
+    </div>
+
+    <!-- Your list -->
+    <div class="insights-section">
+      <h3 class="insights-heading">Your list</h3>
+      <div id="shop-list" class="shop-list-wrap"></div>
+    </div>
+
+    <!-- Claude suggestions -->
+    <div class="insights-section">
+      <div class="shop-sugg-header">
+        <h3 class="insights-heading" style="margin-bottom:0">✨ Claude's suggestions</h3>
+        <button id="shop-suggest-btn" class="shop-suggest-btn">✨ Ask Claude</button>
+      </div>
+      <p id="shop-suggest-error" class="shop-suggest-error" hidden></p>
+      <div id="shop-suggestions"></div>
+    </div>
+  </div>
+
   <!-- ── Insights tab ── -->
   <div id="tab-insights" class="tab-panel" hidden>
     <div class="section-title">Financial Insights</div>
@@ -176,6 +203,10 @@
   <button class="nav-btn" data-tab="recommendations">
     <span class="nav-icon">🍽️</span>
     <span>Ideas</span>
+  </button>
+  <button class="nav-btn" data-tab="shopping">
+    <span class="nav-icon">🛒</span>
+    <span>List</span>
   </button>
   <button class="nav-btn" data-tab="insights">
     <span class="nav-icon">📊</span>

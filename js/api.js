@@ -173,4 +173,46 @@ Format your response as a numbered list of meals. Keep it practical and home-coo
   return data.content?.[0]?.text || '';
 }
 
-export { getApiKey, setApiKey, scanReceipt, getMealRecommendations };
+async function getShoppingSuggestions(items) {
+  const key = getApiKey();
+  if (!key) throw new Error('NO_KEY');
+
+  const inventory = items.length
+    ? items.map((i) => `- ${i.name}: ${i.qty} ${i.unit}${i.expirationDate ? `, expires ${i.expirationDate}` : ''}`).join('\n')
+    : '(pantry is empty)';
+
+  const payload = {
+    model: MODEL,
+    max_tokens: 512,
+    messages: [{
+      role: 'user',
+      content: `You are a helpful kitchen assistant. Based on the pantry inventory below, suggest 6–8 items to add to a shopping list. Prioritise: restocking items that are nearly gone or expiring soon, common staples that appear to be missing, and ingredients that would complement what's already there.
+
+Pantry:
+${inventory}
+
+Return ONLY a JSON array of item name strings with no extra text. Example: ["Milk","Bread","Olive Oil"]`,
+    }],
+  };
+
+  const res = await fetch(ANTHROPIC_API, {
+    method: 'POST',
+    headers: makeHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (res.status === 401 || res.status === 403) throw new Error('INVALID_KEY');
+  if (!res.ok) throw new Error(`API_ERROR:${res.status}`);
+
+  const data = await res.json();
+  const text = data.content?.[0]?.text || '';
+  try {
+    const list = extractJSON(text);
+    if (!Array.isArray(list)) throw new Error('Expected array');
+    return list.map((s) => String(s).trim()).filter(Boolean);
+  } catch {
+    throw new Error('PARSE_ERROR');
+  }
+}
+
+export { getApiKey, setApiKey, scanReceipt, getMealRecommendations, getShoppingSuggestions };

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `my-kitchen-${CACHE_VERSION}`;
 const APP_SHELL = [
   '/',
@@ -11,6 +11,8 @@ const APP_SHELL = [
   '/js/barcode.js',
   '/js/history.js',
   '/js/insights.js',
+  '/js/shopping.js',
+  '/js/shoppingui.js',
   '/js/inventory.js',
   '/js/scanner.js',
   '/js/recommendations.js',
