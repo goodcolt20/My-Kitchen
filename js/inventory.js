@@ -321,39 +321,22 @@ function renderActionSheet() {
 }
 
 // ── Long-press detection ──────────────────────────────────────────────────────
+// Strategy: click = tap (reliable cross-platform), touch events = long-press only.
+// lpFired flag suppresses the click that follows a completed long-press.
 
 const LP_DELAY = 500;
-const LP_MOVE_THRESHOLD = 8; // px — ignore tiny finger jitter
+const LP_MOVE_THRESHOLD = 8;
 
-let lpTimer    = null;
-let lpCard     = null;
-let lpFired    = false;
-let lpStartX   = 0;
-let lpStartY   = 0;
+let lpTimer  = null;
+let lpCard   = null;
+let lpFired  = false;
+let lpStartX = 0;
+let lpStartY = 0;
 
 function lpCancel() {
   clearTimeout(lpTimer);
   lpTimer = null;
   if (lpCard) { lpCard.classList.remove('pressing'); lpCard = null; }
-  lpFired  = false;
-  lpStartX = 0;
-  lpStartY = 0;
-}
-
-function lpStart(card, searchVal, x, y) {
-  lpCancel();
-  lpCard   = card;
-  lpFired  = false;
-  lpStartX = x;
-  lpStartY = y;
-  card.classList.add('pressing');
-  lpTimer = setTimeout(() => {
-    lpFired = true;
-    card.classList.remove('pressing');
-    lpCard = null;
-    lpTimer = null;
-    openItemActionSheet(card.dataset.id, searchVal);
-  }, LP_DELAY);
 }
 
 function initInventory() {
@@ -388,57 +371,49 @@ function initInventory() {
     renderInventory(search?.value || '');
   });
 
-  // Long-press / tap on inventory list (delegated)
+  // ── Gesture handling on inventory list ──────────────────────────────────────
   const list = document.getElementById('inventory-list');
 
+  // touchstart — start long-press timer
   list?.addEventListener('touchstart', (e) => {
     const card = e.target.closest('.item-card');
     if (!card) return;
-    const t = e.touches[0];
-    lpStart(card, search?.value || '', t.clientX, t.clientY);
+    lpCancel();
+    lpFired  = false;
+    lpCard   = card;
+    const t  = e.touches[0];
+    lpStartX = t.clientX;
+    lpStartY = t.clientY;
+    card.classList.add('pressing');
+    lpTimer = setTimeout(() => {
+      lpFired = true;
+      card.classList.remove('pressing');
+      lpCard  = null;
+      lpTimer = null;
+      openItemActionSheet(card.dataset.id, search?.value || '');
+    }, LP_DELAY);
   }, { passive: true });
 
-  list?.addEventListener('touchend', () => {
-    if (!lpFired && lpTimer) {
-      const card = lpCard;
-      lpCancel();
-      if (card) openItemModal(card.dataset.id);
-    } else {
-      lpCancel();
-    }
-  });
-
+  // touchmove — cancel if moved beyond threshold (finger is scrolling)
   list?.addEventListener('touchmove', (e) => {
     if (!lpTimer) return;
     const t = e.touches[0];
-    const dx = Math.abs(t.clientX - lpStartX);
-    const dy = Math.abs(t.clientY - lpStartY);
-    if (dx > LP_MOVE_THRESHOLD || dy > LP_MOVE_THRESHOLD) lpCancel();
+    if (Math.abs(t.clientX - lpStartX) > LP_MOVE_THRESHOLD ||
+        Math.abs(t.clientY - lpStartY) > LP_MOVE_THRESHOLD) lpCancel();
   }, { passive: true });
 
-  // Suppress OS context menu triggered by long-press
-  list?.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('.item-card')) e.preventDefault();
-  });
+  // touchend — cancel timer; the click event below handles the tap
+  list?.addEventListener('touchend', () => lpCancel());
+  list?.addEventListener('touchcancel', () => lpCancel());
 
-  list?.addEventListener('mousedown', (e) => {
+  // click — tap handler (fires reliably after quick touch-release, or mouse click)
+  list?.addEventListener('click', (e) => {
+    if (lpFired) { lpFired = false; return; } // long-press just completed — ignore
     const card = e.target.closest('.item-card');
-    if (!card) return;
-    lpStart(card, search?.value || '', e.clientX, e.clientY);
+    if (card) openItemModal(card.dataset.id);
   });
 
-  list?.addEventListener('mouseup', () => {
-    if (!lpFired && lpTimer) {
-      const card = lpCard;
-      lpCancel();
-      if (card) openItemModal(card.dataset.id);
-    } else {
-      lpCancel();
-    }
-  });
-
-  list?.addEventListener('mouseleave', () => lpCancel());
-
+  // Suppress OS context menu on long-press
   list?.addEventListener('contextmenu', (e) => {
     if (e.target.closest('.item-card')) e.preventDefault();
   });
