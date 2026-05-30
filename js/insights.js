@@ -185,8 +185,9 @@ function renderWasteLog() {
         </div>
         <span class="waste-price ${h.price ? 'waste-price-set' : ''}">${h.price ? fmt(h.price) : '—'}</span>
         <div class="waste-confirm-bar" hidden>
-          <button class="btn-confirm-yes waste-confirm-yes">✓ Remove</button>
-          <button class="btn-confirm-no waste-confirm-no">✕</button>
+          <span class="waste-confirm-label">Delete?</span>
+          <button class="btn-confirm-yes waste-confirm-yes">Yes</button>
+          <button class="btn-confirm-no waste-confirm-no">No</button>
         </div>
       </div>`;
   }).join('');
