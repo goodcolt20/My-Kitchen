@@ -322,21 +322,30 @@ function renderActionSheet() {
 
 // ── Long-press detection ──────────────────────────────────────────────────────
 
-let lpTimer = null;
-let lpCard  = null;
-let lpFired = false;
+const LP_DELAY = 500;
+const LP_MOVE_THRESHOLD = 8; // px — ignore tiny finger jitter
+
+let lpTimer    = null;
+let lpCard     = null;
+let lpFired    = false;
+let lpStartX   = 0;
+let lpStartY   = 0;
 
 function lpCancel() {
   clearTimeout(lpTimer);
   lpTimer = null;
   if (lpCard) { lpCard.classList.remove('pressing'); lpCard = null; }
-  lpFired = false;
+  lpFired  = false;
+  lpStartX = 0;
+  lpStartY = 0;
 }
 
-function lpStart(card, searchVal) {
+function lpStart(card, searchVal, x, y) {
   lpCancel();
-  lpCard  = card;
-  lpFired = false;
+  lpCard   = card;
+  lpFired  = false;
+  lpStartX = x;
+  lpStartY = y;
   card.classList.add('pressing');
   lpTimer = setTimeout(() => {
     lpFired = true;
@@ -344,7 +353,7 @@ function lpStart(card, searchVal) {
     lpCard = null;
     lpTimer = null;
     openItemActionSheet(card.dataset.id, searchVal);
-  }, 500);
+  }, LP_DELAY);
 }
 
 function initInventory() {
@@ -385,12 +394,12 @@ function initInventory() {
   list?.addEventListener('touchstart', (e) => {
     const card = e.target.closest('.item-card');
     if (!card) return;
-    lpStart(card, search?.value || '');
+    const t = e.touches[0];
+    lpStart(card, search?.value || '', t.clientX, t.clientY);
   }, { passive: true });
 
-  list?.addEventListener('touchend', (e) => {
+  list?.addEventListener('touchend', () => {
     if (!lpFired && lpTimer) {
-      // was a tap
       const card = lpCard;
       lpCancel();
       if (card) openItemModal(card.dataset.id);
@@ -400,14 +409,22 @@ function initInventory() {
   });
 
   list?.addEventListener('touchmove', (e) => {
-    // Any movement cancels long-press so scroll works freely
-    lpCancel();
+    if (!lpTimer) return;
+    const t = e.touches[0];
+    const dx = Math.abs(t.clientX - lpStartX);
+    const dy = Math.abs(t.clientY - lpStartY);
+    if (dx > LP_MOVE_THRESHOLD || dy > LP_MOVE_THRESHOLD) lpCancel();
   }, { passive: true });
+
+  // Suppress OS context menu triggered by long-press
+  list?.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('.item-card')) e.preventDefault();
+  });
 
   list?.addEventListener('mousedown', (e) => {
     const card = e.target.closest('.item-card');
     if (!card) return;
-    lpStart(card, search?.value || '');
+    lpStart(card, search?.value || '', e.clientX, e.clientY);
   });
 
   list?.addEventListener('mouseup', () => {

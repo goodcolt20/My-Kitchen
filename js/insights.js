@@ -225,12 +225,19 @@ function initWasteActionSheet() {
   document.getElementById('waste-action-backdrop')?.addEventListener('click', hideWasteActionSheet);
 }
 
-function attachWasteLogLongPress(container) {
-  let timer = null;
-  let target = null;
+const LP_MOVE_THRESHOLD = 8;
 
-  function start(el) {
+function attachWasteLogLongPress(container) {
+  let timer   = null;
+  let target  = null;
+  let startX  = 0;
+  let startY  = 0;
+
+  function start(el, x, y) {
+    cancel();
     target = el;
+    startX = x;
+    startY = y;
     el.classList.add('long-press-active');
     timer = setTimeout(() => {
       el.classList.remove('long-press-active');
@@ -245,10 +252,18 @@ function attachWasteLogLongPress(container) {
   }
 
   container.querySelectorAll('.waste-item').forEach((item) => {
-    item.addEventListener('touchstart',  (e) => { e.preventDefault(); start(item); }, { passive: false });
+    item.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      start(item, t.clientX, t.clientY);
+    }, { passive: true });
     item.addEventListener('touchend',    cancel);
-    item.addEventListener('touchmove',   cancel, { passive: true });
-    item.addEventListener('mousedown',   () => start(item));
+    item.addEventListener('touchmove', (e) => {
+      if (!timer) return;
+      const t = e.touches[0];
+      if (Math.abs(t.clientX - startX) > LP_MOVE_THRESHOLD ||
+          Math.abs(t.clientY - startY) > LP_MOVE_THRESHOLD) cancel();
+    }, { passive: true });
+    item.addEventListener('mousedown',   (e) => start(item, e.clientX, e.clientY));
     item.addEventListener('mouseup',     cancel);
     item.addEventListener('mouseleave',  cancel);
     item.addEventListener('contextmenu', (e) => e.preventDefault());
