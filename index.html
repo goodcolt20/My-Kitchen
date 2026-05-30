@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2d6a4f">
   <meta name="description" content="Household grocery inventory with receipt scanning and meal recommendations">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.anthropic.com; img-src 'self' blob: data:; script-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.anthropic.com https://world.openfoodfacts.org; img-src 'self' blob: data:; script-src 'self';">
   <title>My Kitchen</title>
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -15,7 +16,7 @@
 
 <!-- ── Header ── -->
 <header class="app-header">
-  <h1>🍳 My Kitchen</h1>
+  <h1>🐞 My Kitchen</h1>
   <button class="btn-icon" id="settings-open-btn" title="Settings" aria-label="Settings">⚙️</button>
 </header>
 
@@ -33,6 +34,17 @@
   <div id="tab-inventory" class="tab-panel">
     <div class="inventory-toolbar">
       <input type="search" id="inventory-search" class="search-input" placeholder="Search items…" autocomplete="off">
+      <button class="btn-icon toolbar-icon-btn" id="barcode-scan-btn" title="Scan barcode" aria-label="Scan barcode">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor" aria-hidden="true">
+          <rect x="1"    y="3" width="2" height="16" rx="0.5"/>
+          <rect x="4.5"  y="3" width="1" height="16" rx="0.5"/>
+          <rect x="6.5"  y="3" width="2" height="16" rx="0.5"/>
+          <rect x="10"   y="3" width="1" height="16" rx="0.5"/>
+          <rect x="12"   y="3" width="3" height="16" rx="0.5"/>
+          <rect x="16.5" y="3" width="1" height="16" rx="0.5"/>
+          <rect x="18.5" y="3" width="2" height="16" rx="0.5"/>
+        </svg>
+      </button>
     </div>
     <div id="inventory-list"></div>
   </div>
@@ -42,10 +54,8 @@
     <div class="section-title">Scan Receipt</div>
     <div class="section-sub">Take a photo or upload a receipt image. Claude will extract items and add them to your inventory.</div>
 
-    <!-- Status message -->
     <div id="scan-status" class="scan-status" hidden></div>
 
-    <!-- Upload section -->
     <div id="scan-upload-section">
       <img id="receipt-preview" class="receipt-preview" alt="Receipt preview" hidden>
       <div class="scan-drop-zone" id="scan-drop-zone">
@@ -57,7 +67,6 @@
       <button class="btn-primary" id="upload-btn">📷 Take Photo / Choose Image</button>
     </div>
 
-    <!-- Loading section -->
     <div id="scan-loading-section" hidden>
       <div class="scan-loading">
         <div class="spinner"></div>
@@ -66,7 +75,6 @@
       </div>
     </div>
 
-    <!-- Results section -->
     <div id="scan-results-section" hidden>
       <div class="parsed-results-header">
         <span class="section-title">Review Items</span>
@@ -100,7 +108,7 @@
 
 </main>
 
-<!-- ── FAB (Inventory only) ── -->
+<!-- ── FAB ── -->
 <button class="fab" id="fab-add" title="Add item" aria-label="Add item">+</button>
 
 <!-- ── Bottom nav ── -->
@@ -144,17 +152,8 @@
       </div>
       <div class="form-group">
         <label class="form-label" for="item-category-input">Category</label>
-        <select class="form-select" id="item-category-input">
-          <option value="produce">🥦 Produce</option>
-          <option value="dairy">🥛 Dairy</option>
-          <option value="meat">🥩 Meat</option>
-          <option value="bakery">🍞 Bakery</option>
-          <option value="frozen">🧊 Frozen</option>
-          <option value="beverages">🥤 Beverages</option>
-          <option value="pantry">🫙 Pantry</option>
-          <option value="household">🧹 Household</option>
-          <option value="other" selected>📦 Other</option>
-        </select>
+        <!-- Populated dynamically by populateCategorySelect() -->
+        <select class="form-select" id="item-category-input"></select>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -171,6 +170,60 @@
   </div>
 </div>
 
+<!-- ── Barcode Scanner Modal ── -->
+<div id="barcode-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="barcode-title">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title" id="barcode-title">Scan Barcode</span>
+      <button class="btn-icon" id="barcode-close-btn" aria-label="Close">✕</button>
+    </div>
+
+    <!-- Live camera viewfinder -->
+    <div id="barcode-camera-section">
+      <div class="barcode-viewfinder">
+        <video id="barcode-video" playsinline muted autoplay></video>
+        <div class="barcode-guide">
+          <div class="barcode-guide-corners">
+            <span class="corner tl"></span><span class="corner tr"></span>
+            <span class="corner bl"></span><span class="corner br"></span>
+          </div>
+          <div class="barcode-scan-line"></div>
+        </div>
+      </div>
+      <p class="barcode-hint">Point camera at the barcode on the product</p>
+    </div>
+
+    <!-- Unsupported browser fallback -->
+    <div id="barcode-unsupported-section" hidden>
+      <p class="barcode-unsupported-msg">Camera barcode scanning isn't supported in this browser. Enter the barcode number below.</p>
+    </div>
+
+    <!-- Status -->
+    <div id="barcode-status" class="scan-status" hidden></div>
+
+    <!-- Product result -->
+    <div id="barcode-result" class="barcode-result" hidden>
+      <div class="barcode-product-card">
+        <div class="barcode-product-name" id="barcode-product-name"></div>
+        <div class="barcode-product-meta" id="barcode-product-meta"></div>
+      </div>
+      <div class="scan-actions">
+        <button class="btn-primary" id="barcode-add-btn">Add to Inventory</button>
+        <button class="btn-secondary" id="barcode-scan-again-btn">Scan Again</button>
+      </div>
+    </div>
+
+    <!-- Manual entry (always available) -->
+    <div class="barcode-manual">
+      <label class="form-label" for="barcode-manual-input">Or enter barcode manually</label>
+      <div class="barcode-input-row">
+        <input type="text" id="barcode-manual-input" class="form-input" placeholder="e.g. 0123456789012" inputmode="numeric" autocomplete="off">
+        <button class="btn-primary" id="barcode-lookup-btn">Look Up</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Settings modal ── -->
 <div id="settings-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="modal-sheet">
@@ -178,12 +231,26 @@
       <span class="modal-title" id="settings-title">Settings</span>
       <button class="btn-icon" id="settings-close-btn" aria-label="Close">✕</button>
     </div>
+
+    <!-- API key -->
     <div class="form-group">
       <label class="form-label" for="settings-api-key">Anthropic API Key</label>
       <input class="form-input settings-key-input" id="settings-api-key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
-      <p class="settings-key-note">Your key is stored locally on this device only and is never sent anywhere except directly to api.anthropic.com.</p>
+      <p class="settings-key-note">Stored locally on this device only. Sent directly to api.anthropic.com.</p>
     </div>
-    <button class="btn-primary" id="settings-save-btn" style="width:100%">Save Key</button>
+
+    <!-- Categories editor -->
+    <div class="settings-divider"></div>
+    <div class="form-group">
+      <div class="settings-section-header">
+        <span class="form-label" style="margin:0">Categories</span>
+        <button type="button" class="btn-text" id="reset-categories-btn">Reset defaults</button>
+      </div>
+      <div id="categories-editor" class="categories-editor"></div>
+      <button type="button" class="btn-secondary btn-sm" id="add-category-btn">+ Add Category</button>
+    </div>
+
+    <button class="btn-primary" id="settings-save-btn" style="width:100%;margin-top:8px">Save Settings</button>
   </div>
 </div>
 
