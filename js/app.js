@@ -6,10 +6,10 @@ import { initBarcodeScanner } from './barcode.js';
 import { getCategories, saveCategories, resetCategories } from './categories.js';
 import { initInsights, renderInsights } from './insights.js';
 import { initShopping, renderShopping } from './shoppingui.js';
-import { initSync, isReady, getClient, signIn, signOut, getSession } from './sync.js';
-import { initDb, migrateLocalToSupabase as migrateInv } from './db.js';
-import { initHistory, migrateLocalToSupabase as migrateHist } from './history.js';
-import { initShopping as initShoppingData, migrateLocalToSupabase as migrateShop } from './shopping.js';
+import { initSync, isReady, signIn, signOut, getSession, sbList } from './sync.js';
+import { initDb, migrateLocalToSupabase as migrateInv, setDbSyncErrorHandler } from './db.js';
+import { initHistory, migrateLocalToSupabase as migrateHist, setHistorySyncErrorHandler } from './history.js';
+import { initShopping as initShoppingData, migrateLocalToSupabase as migrateShop, setShoppingSyncErrorHandler } from './shopping.js';
 
 // ── Tab routing ──────────────────────────────────────────────────────────────
 function showTab(tabId) {
@@ -166,9 +166,13 @@ function initLoginScreen() {
     loginBtn.textContent = 'Signing in…';
     try {
       await signIn(emailInput.value.trim(), passInput.value);
+      // Confirm the session actually reaches the database
+      await sbList('inventory');
       await bootApp();
       hideLoginScreen();
     } catch (err) {
+      // Clear any partial session the SDK may have stored
+      await signOut().catch(() => {});
       errEl.textContent = err.message || 'Sign-in failed.';
       errEl.hidden = false;
     } finally {
@@ -202,11 +206,17 @@ async function bootApp() {
     renderShopping();
     renderInsights();
   };
+  const onSyncErr = (msg) => showToast(msg);
+
+  // Wire sync error handlers so write failures surface as toasts
+  setDbSyncErrorHandler(onSyncErr);
+  setHistorySyncErrorHandler(onSyncErr);
+  setShoppingSyncErrorHandler(onSyncErr);
 
   await Promise.all([
-    initDb(rerender),
-    initHistory(rerender),
-    initShoppingData(rerender),
+    initDb(rerender, onSyncErr),
+    initHistory(rerender, onSyncErr),
+    initShoppingData(rerender, onSyncErr),
   ]);
 
   // One-time migration from localStorage
@@ -262,8 +272,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (isReady()) {
     const session = await getSession();
     if (session) {
-      await bootApp();
-      hideLoginScreen();
+      try {
+        // Validate the session is actually live before skipping the login screen
+        await sbList('inventory');
+        await bootApp();
+        hideLoginScreen();
+      } catch {
+        // Stale or invalid session — clear it and show login
+        await signOut().catch(() => {});
+        showLoginScreen();
+      }
     } else {
       showLoginScreen();
     }
