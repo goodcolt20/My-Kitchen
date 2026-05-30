@@ -385,9 +385,8 @@ function initInventory() {
   list?.addEventListener('touchstart', (e) => {
     const card = e.target.closest('.item-card');
     if (!card) return;
-    e.preventDefault();
     lpStart(card, search?.value || '');
-  }, { passive: false });
+  }, { passive: true });
 
   list?.addEventListener('touchend', (e) => {
     if (!lpFired && lpTimer) {
@@ -400,7 +399,10 @@ function initInventory() {
     }
   });
 
-  list?.addEventListener('touchmove', () => lpCancel());
+  list?.addEventListener('touchmove', (e) => {
+    // Any movement cancels long-press so scroll works freely
+    lpCancel();
+  }, { passive: true });
 
   list?.addEventListener('mousedown', (e) => {
     const card = e.target.closest('.item-card');
