@@ -43,25 +43,29 @@ function deleteItem(id) {
   saveItems(items);
 }
 
-function upsertByName(name, qty, unit, purchaseDate, expirationDate, category) {
+function upsertByName(name, qty, unit, purchaseDate, expirationDate, category, price) {
   const items = loadItems();
   const key = name.toLowerCase().trim();
   const idx = items.findIndex((i) => i.name.toLowerCase().trim() === key);
   if (idx !== -1) {
-    // Add quantities together when merging from receipt
     const existing = items[idx];
     const combined = (parseFloat(existing.qty) || 0) + (parseFloat(qty) || 0);
+    const combinedPrice =
+      price != null && price !== ''
+        ? ((parseFloat(existing.price) || 0) + parseFloat(price)).toString()
+        : existing.price;
     items[idx] = {
       ...existing,
       qty: combined.toString(),
       unit: unit || existing.unit,
       purchaseDate: purchaseDate || existing.purchaseDate,
       expirationDate: expirationDate || existing.expirationDate,
+      price: combinedPrice,
     };
     saveItems(items);
     return items[idx];
   }
-  return addItem({ name, qty: qty.toString(), unit, purchaseDate, expirationDate, category });
+  return addItem({ name, qty: qty.toString(), unit, purchaseDate, expirationDate, category, price });
 }
 
 // Sort by purchaseDate ascending (oldest first), nulls last

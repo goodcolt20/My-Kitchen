@@ -4,6 +4,7 @@ import { initRecommendations } from './recommendations.js';
 import { getApiKey, setApiKey } from './api.js';
 import { initBarcodeScanner } from './barcode.js';
 import { getCategories, saveCategories, resetCategories } from './categories.js';
+import { initInsights, renderInsights } from './insights.js';
 
 // ── Tab routing ──────────────────────────────────────────────────────────────
 function showTab(tabId) {
@@ -19,6 +20,7 @@ function showTab(tabId) {
   if (fab) fab.hidden = tabId !== 'inventory';
 
   if (tabId === 'inventory') renderInventory();
+  if (tabId === 'insights')  renderInsights();
 }
 
 function initNav() {
@@ -144,5 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initScanner();
   initRecommendations();
   initBarcodeScanner((itemId, prefill) => openItemModal(itemId, prefill));
+  initInsights();
   showTab('inventory');
 });

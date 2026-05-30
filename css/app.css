@@ -376,6 +376,134 @@ body {
 .rec-body { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; }
 .recs-pre { white-space: pre-wrap; font-size: 0.88rem; line-height: 1.6; color: var(--text); }
 
+/* ── Price field ── */
+.form-label-note { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+.price-input-wrap { position: relative; display: flex; align-items: center; }
+.price-prefix {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+.price-input { padding-left: 24px !important; }
+
+/* ── Finish / Waste buttons on item cards ── */
+.finish-btn { color: #2a9d8f; }
+.waste-btn  { color: var(--text-muted); }
+.finish-btn:hover { color: #1b7a6e; }
+.waste-btn:hover  { color: var(--red); }
+
+/* ── Insights tab ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow);
+}
+.kpi-card.kpi-warn { border-color: #f5c6c6; background: #fff5f5; }
+.kpi-card.kpi-ok   { border-color: var(--green-light); background: var(--green-pale); }
+.kpi-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.kpi-value { font-size: 1.4rem; font-weight: 800; color: var(--green-dark); }
+.kpi-card.kpi-warn .kpi-value { color: var(--red); }
+.kpi-card.kpi-ok   .kpi-value { color: var(--green-mid); }
+
+.insights-section { margin-bottom: 24px; }
+.insights-heading {
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.insights-empty { font-size: 0.88rem; color: var(--text-muted); padding: 8px 0; }
+
+/* Monthly bar chart */
+.month-bars {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.month-bars::-webkit-scrollbar { display: none; }
+.month-bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 44px;
+}
+.month-bar-stack {
+  display: flex;
+  flex-direction: column-reverse; /* grows upward */
+  width: 36px;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+.bar-seg { flex-shrink: 0; width: 100%; }
+.bar-used    { background: var(--green-mid); }
+.bar-wasted  { background: #e63946; }
+.bar-pending { background: #adb5bd; }
+.month-bar-label { font-size: 0.66rem; color: var(--text-muted); white-space: nowrap; }
+
+.chart-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.ld-used    { background: var(--green-mid); }
+.ld-wasted  { background: #e63946; }
+.ld-pending { background: #adb5bd; }
+
+/* Category bar chart */
+.cat-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.cat-bar-label { font-size: 0.82rem; width: 100px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-bar-track { flex: 1; height: 10px; background: var(--surface-alt); border-radius: 5px; overflow: hidden; }
+.cat-bar-fill  { height: 100%; background: var(--green-mid); border-radius: 5px; transition: width 0.3s; }
+.cat-bar-value { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); width: 52px; text-align: right; flex-shrink: 0; }
+
+/* Waste log */
+.waste-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.waste-item:last-child { border-bottom: none; }
+.waste-emoji { font-size: 1.4rem; flex-shrink: 0; }
+.waste-info { flex: 1; min-width: 0; }
+.waste-name { display: block; font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.waste-meta { font-size: 0.75rem; color: var(--text-muted); }
+.waste-price { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); flex-shrink: 0; }
+.waste-price.waste-price-set { color: var(--red); }
+
 /* ── Settings ── */
 .settings-key-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
 .settings-key-input {

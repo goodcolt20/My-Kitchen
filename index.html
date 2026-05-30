@@ -106,6 +106,50 @@
     <div id="recs-output" class="recs-output" hidden></div>
   </div>
 
+  <!-- ── Insights tab ── -->
+  <div id="tab-insights" class="tab-panel" hidden>
+    <div class="section-title">Financial Insights</div>
+    <p class="section-sub">Track spending, pantry value, and food waste over time.</p>
+
+    <!-- KPI cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-label">Pantry Value</span>
+        <span class="kpi-value" id="kpi-pantry-value">—</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Total Spent</span>
+        <span class="kpi-value" id="kpi-total-spent">—</span>
+      </div>
+      <div class="kpi-card" id="kpi-waste-card">
+        <span class="kpi-label">Waste Cost</span>
+        <span class="kpi-value" id="kpi-waste-cost">—</span>
+      </div>
+      <div class="kpi-card" id="kpi-rate-card">
+        <span class="kpi-label">Waste Rate</span>
+        <span class="kpi-value" id="kpi-waste-rate">—</span>
+      </div>
+    </div>
+
+    <!-- Monthly spending chart -->
+    <div class="insights-section">
+      <h3 class="insights-heading">Monthly Spending</h3>
+      <div id="monthly-chart"></div>
+    </div>
+
+    <!-- Category breakdown -->
+    <div class="insights-section">
+      <h3 class="insights-heading">By Category</h3>
+      <div id="category-chart"></div>
+    </div>
+
+    <!-- Waste log -->
+    <div class="insights-section">
+      <h3 class="insights-heading">Waste Log</h3>
+      <div id="waste-log-list"></div>
+    </div>
+  </div>
+
 </main>
 
 <!-- ── FAB ── -->
@@ -124,6 +168,10 @@
   <button class="nav-btn" data-tab="recommendations">
     <span class="nav-icon">🍽️</span>
     <span>Ideas</span>
+  </button>
+  <button class="nav-btn" data-tab="insights">
+    <span class="nav-icon">📊</span>
+    <span>Insights</span>
   </button>
 </nav>
 
@@ -148,6 +196,13 @@
         <div class="form-group">
           <label class="form-label" for="item-unit-input">Unit</label>
           <input class="form-input" id="item-unit-input" type="text" placeholder="each">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="item-price-input">Price Paid <span class="form-label-note">(optional)</span></label>
+        <div class="price-input-wrap">
+          <span class="price-prefix">$</span>
+          <input class="form-input price-input" id="item-price-input" type="number" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
         </div>
       </div>
       <div class="form-group">

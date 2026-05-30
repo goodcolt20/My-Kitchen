@@ -17,7 +17,7 @@ function renderParsedItems() {
       <input type="checkbox" class="parsed-check" data-idx="${idx}" id="pc-${idx}" checked>
       <label for="pc-${idx}">
         <span class="parsed-name">${escapeHtml(item.name)}</span>
-        <span class="parsed-meta">${escapeHtml(item.qty)} ${escapeHtml(item.unit)} · ${escapeHtml(item.category)}</span>
+        <span class="parsed-meta">${escapeHtml(item.qty)} ${escapeHtml(item.unit)} · ${escapeHtml(item.category)}${item.price ? ` · $${parseFloat(item.price).toFixed(2)}` : ''}</span>
       </label>
     </div>
   `
@@ -117,7 +117,7 @@ function initScanner() {
     for (const idx of checked) {
       const item = parsedItems[idx];
       if (item) {
-        upsertByName(item.name, item.qty, item.unit, item.purchaseDate, item.expirationDate, item.category);
+        upsertByName(item.name, item.qty, item.unit, item.purchaseDate, item.expirationDate, item.category, item.price);
         saved++;
       }
     }
