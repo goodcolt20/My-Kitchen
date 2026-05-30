@@ -25,4 +25,9 @@ function logDisposal(item, type) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
 }
 
-export { getHistory, logDisposal };
+function deleteHistoryEntry(id) {
+  const history = getHistory().filter((h) => h.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+}
+
+export { getHistory, logDisposal, deleteHistoryEntry };

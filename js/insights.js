@@ -1,5 +1,5 @@
 import { getItems } from './db.js';
-import { getHistory } from './history.js';
+import { getHistory, deleteHistoryEntry } from './history.js';
 import { getCategoryById } from './categories.js';
 
 const CHART_H = 110; // px height for bar chart
@@ -177,7 +177,7 @@ function renderWasteLog() {
   el.innerHTML = wasted.map((h) => {
     const cat = getCategoryById(h.category);
     return `
-      <div class="waste-item">
+      <div class="waste-item" data-id="${escapeHtml(h.id)}">
         <span class="waste-emoji">${cat.emoji}</span>
         <div class="waste-info">
           <span class="waste-name">${escapeHtml(h.itemName)}</span>
@@ -186,6 +186,44 @@ function renderWasteLog() {
         <span class="waste-price ${h.price ? 'waste-price-set' : ''}">${h.price ? fmt(h.price) : '—'}</span>
       </div>`;
   }).join('');
+
+  attachWasteLogLongPress(el);
+}
+
+const LONG_PRESS_MS = 500;
+
+function attachWasteLogLongPress(container) {
+  let timer = null;
+  let target = null;
+
+  function start(el) {
+    target = el;
+    el.classList.add('long-press-active');
+    timer = setTimeout(() => {
+      el.classList.remove('long-press-active');
+      el.classList.add('long-press-removing');
+      setTimeout(() => {
+        deleteHistoryEntry(el.dataset.id);
+        renderWasteLog();
+        renderKPIs();
+      }, 250);
+    }, LONG_PRESS_MS);
+  }
+
+  function cancel() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (target) { target.classList.remove('long-press-active'); target = null; }
+  }
+
+  container.querySelectorAll('.waste-item').forEach((item) => {
+    item.addEventListener('touchstart',  () => start(item), { passive: true });
+    item.addEventListener('touchend',    cancel);
+    item.addEventListener('touchmove',   cancel, { passive: true });
+    item.addEventListener('mousedown',   () => start(item));
+    item.addEventListener('mouseup',     cancel);
+    item.addEventListener('mouseleave',  cancel);
+    item.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
 }
 
 // ── Public ────────────────────────────────────────────────────────────────────

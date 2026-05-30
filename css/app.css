@@ -522,16 +522,17 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
 }
-.waste-item:last-child { border-bottom: none; }
 .waste-emoji { font-size: 1.4rem; flex-shrink: 0; }
 .waste-info { flex: 1; min-width: 0; }
 .waste-name { display: block; font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .waste-meta { font-size: 0.75rem; color: var(--text-muted); }
 .waste-price { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); flex-shrink: 0; }
 .waste-price.waste-price-set { color: var(--red); }
+.waste-item { cursor: pointer; user-select: none; transition: background 0.15s, opacity 0.25s; border-radius: 6px; margin: 0 -6px; padding: 10px 6px; }
+.waste-item + .waste-item { border-top: 1px solid var(--border); }
+.waste-item.long-press-active { background: var(--surface-alt); }
+.waste-item.long-press-removing { opacity: 0; }
 
 /* ── Settings ── */
 .settings-key-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
