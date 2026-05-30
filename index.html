@@ -155,6 +155,14 @@
 <!-- ── FAB ── -->
 <button class="fab" id="fab-add" title="Add item" aria-label="Add item">+</button>
 
+<!-- ── Waste log action sheet ── -->
+<div id="waste-action-backdrop" class="action-backdrop" hidden></div>
+<div id="waste-action-sheet" class="action-sheet" hidden>
+  <div class="action-sheet-label" id="waste-action-label"></div>
+  <button class="action-sheet-btn action-sheet-destructive" id="waste-action-delete">Remove from log</button>
+  <button class="action-sheet-btn action-sheet-cancel" id="waste-action-cancel">Cancel</button>
+</div>
+
 <!-- ── Bottom nav ── -->
 <nav class="app-nav">
   <button class="nav-btn active" data-tab="inventory">
