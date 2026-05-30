@@ -529,9 +529,9 @@ body {
 .waste-meta { font-size: 0.75rem; color: var(--text-muted); }
 .waste-price { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); flex-shrink: 0; }
 .waste-price.waste-price-set { color: var(--red); }
-.waste-item { cursor: pointer; user-select: none; transition: background 0.15s, opacity 0.25s; border-radius: 6px; margin: 0 -6px; padding: 10px 6px; }
+.waste-item { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; transition: background 0.15s, opacity 0.25s; border-radius: 6px; margin: 0 -6px; padding: 10px 6px; }
 .waste-item + .waste-item { border-top: 1px solid var(--border); }
-.waste-item.long-press-active { background: var(--surface-alt); }
+.waste-item.long-press-active { background: rgba(0,0,0,0.08); }
 .waste-item.long-press-removing { opacity: 0; }
 
 /* ── Settings ── */
