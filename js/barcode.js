@@ -33,6 +33,12 @@ function mapToCategory(tags) {
   return 'pantry';
 }
 
+function defaultExpiry() {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().slice(0, 10);
+}
+
 async function lookupBarcode(barcode) {
   const url = `${OFF_API}/${encodeURIComponent(barcode)}.json?fields=product_name,quantity,categories_tags,brands`;
   const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
@@ -50,7 +56,8 @@ async function lookupBarcode(barcode) {
     qty,
     unit,
     category: mapToCategory(p.categories_tags),
-    purchaseDate: new Date().toISOString().slice(0, 10),
+    purchaseDate:   new Date().toISOString().slice(0, 10),
+    expirationDate: defaultExpiry(),
   };
 }
 

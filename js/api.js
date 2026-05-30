@@ -1,6 +1,12 @@
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
 
+function defaultExpiry() {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().slice(0, 10);
+}
+
 function getApiKey() {
   return localStorage.getItem('mk_api_key') || '';
 }
@@ -117,7 +123,7 @@ Return only the JSON array, no other text.`,
       unit: String(item.unit || 'each').trim(),
       price: item.price != null && item.price !== '' ? String(parseFloat(item.price) || '') : null,
       category: String(item.category || 'other').trim(),
-      expirationDate: item.expirationDate || null,
+      expirationDate: item.expirationDate || defaultExpiry(),
       purchaseDate: new Date().toISOString().slice(0, 10),
     }));
   } catch {
