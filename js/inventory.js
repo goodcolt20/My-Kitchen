@@ -31,36 +31,44 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function targetBadgeHTML(item) {
+  if (!item.targetQty) return '';
+  const current = parseFloat(item.qty) || 0;
+  const target  = parseFloat(item.targetQty);
+  if (isNaN(target)) return '';
+  if (current < target) {
+    return `<span class="target-badge target-low">↓ ${current} of ${target}</span>`;
+  }
+  return `<span class="target-badge target-ok">✓ ${current} of ${target}</span>`;
+}
+
 function itemCardHTML(item) {
   const expClass = isExpired(item.expirationDate)
     ? 'expired'
     : isExpiringSoon(item.expirationDate)
     ? 'expiring-soon'
     : '';
+
+  const current = parseFloat(item.qty) || 0;
+  const target  = parseFloat(item.targetQty);
+  const belowTarget = item.targetQty && !isNaN(target) && current < target;
+
   const cat = getCategoryById(item.category);
   const price = parseFloat(item.price);
   const priceStr = !isNaN(price) && price > 0 ? ` · $${price.toFixed(2)}` : '';
+
   return `
-    <div class="item-card ${expClass}" data-id="${item.id}">
+    <div class="item-card ${expClass}${belowTarget ? ' item-below-target' : ''}" data-id="${item.id}">
       <span class="item-cat">${cat.emoji}</span>
       <div class="item-info">
-        <span class="item-name">${escapeHtml(item.name)}</span>
+        <span class="item-name">${escapeHtml(item.name)}${targetBadgeHTML(item)}</span>
         <span class="item-meta">${escapeHtml(item.qty)} ${escapeHtml(item.unit)}${priceStr}${
     item.expirationDate
       ? `<span class="exp-label ${expClass}"> · exp ${formatDate(item.expirationDate)}</span>`
       : ''
   }</span>
       </div>
-      <div class="item-actions">
-        <button class="btn-icon edit-btn"   data-id="${item.id}" title="Edit">✏️</button>
-        <button class="btn-icon finish-btn" data-id="${item.id}" title="Finished — used it up">✅</button>
-        <button class="btn-icon waste-btn"  data-id="${item.id}" title="Wasted — threw it away">🗑️</button>
-      </div>
-      <div class="confirm-bar" hidden>
-        <span class="confirm-label"></span>
-        <button class="btn-confirm-yes">✓ Yes</button>
-        <button class="btn-confirm-no">✕ Cancel</button>
-      </div>
+      ${belowTarget ? '<div class="item-target-bar"></div>' : ''}
     </div>`;
 }
 
@@ -92,7 +100,6 @@ function renderInventory(filter = '') {
     groups[id].push(item);
   }
 
-  // Sort each category by expiration date ascending; no date goes last
   for (const id of Object.keys(groups)) {
     groups[id].sort((a, b) => {
       if (!a.expirationDate && !b.expirationDate) return 0;
@@ -148,12 +155,196 @@ function closeItemModal() {
   document.getElementById('item-modal').classList.remove('open');
 }
 
-function removeItem(id, type, searchValue) {
-  const item = getItemById(id);
-  if (!item) return;
-  logDisposal(item, type);
-  deleteItem(id);
-  renderInventory(searchValue || '');
+// ── Action sheet ──────────────────────────────────────────────────────────────
+
+let sheetItemId   = null;
+let sheetState    = 'main'; // 'main' | 'used-some' | 'set-target'
+let sheetSearchVal = '';
+
+function openItemActionSheet(id, searchVal) {
+  sheetItemId    = id;
+  sheetState     = 'main';
+  sheetSearchVal = searchVal || '';
+  renderActionSheet();
+  document.getElementById('item-action-sheet').hidden    = false;
+  document.getElementById('item-action-backdrop').hidden = false;
+}
+
+function closeItemActionSheet() {
+  document.getElementById('item-action-sheet').hidden    = true;
+  document.getElementById('item-action-backdrop').hidden = true;
+  sheetItemId = null;
+}
+
+function renderActionSheet() {
+  const item = getItemById(sheetItemId);
+  if (!item) { closeItemActionSheet(); return; }
+
+  const titleEl   = document.getElementById('item-action-title');
+  const contentEl = document.getElementById('item-action-content');
+
+  titleEl.textContent = item.name;
+
+  if (sheetState === 'main') {
+    contentEl.innerHTML = `
+      <div class="action-row a-green" id="ia-finished">
+        <span class="action-icon">✅</span>
+        <div><div class="action-label">Finished</div><div class="action-sub">Used it all up</div></div>
+      </div>
+      <div class="action-row a-orange" id="ia-used-some">
+        <span class="action-icon">➖</span>
+        <div><div class="action-label">Used some…</div><div class="action-sub">Update remaining quantity</div></div>
+      </div>
+      <div class="action-row a-red" id="ia-wasted">
+        <span class="action-icon">🗑️</span>
+        <div><div class="action-label">Wasted</div><div class="action-sub">Thrown away or spoiled</div></div>
+      </div>
+      <div class="action-divider"></div>
+      <div class="action-row" id="ia-set-target">
+        <span class="action-icon">🎯</span>
+        <div><div class="action-label">Set target quantity</div><div class="action-sub">Get a reminder when running low</div></div>
+      </div>
+      <div class="action-row a-muted" id="ia-delete">
+        <span class="action-icon">✕</span>
+        <div><div class="action-label">Delete entry</div><div class="action-sub">Remove without logging</div></div>
+      </div>
+      <div style="padding:12px 0 4px">
+        <button class="ia-back-btn" id="ia-cancel">Cancel</button>
+      </div>`;
+
+    document.getElementById('ia-finished').addEventListener('click', () => {
+      logDisposal(item, 'used');
+      deleteItem(sheetItemId);
+      closeItemActionSheet();
+      renderInventory(sheetSearchVal);
+    });
+    document.getElementById('ia-used-some').addEventListener('click', () => {
+      sheetState = 'used-some';
+      renderActionSheet();
+    });
+    document.getElementById('ia-wasted').addEventListener('click', () => {
+      logDisposal(item, 'wasted');
+      deleteItem(sheetItemId);
+      closeItemActionSheet();
+      renderInventory(sheetSearchVal);
+    });
+    document.getElementById('ia-set-target').addEventListener('click', () => {
+      sheetState = 'set-target';
+      renderActionSheet();
+    });
+    document.getElementById('ia-delete').addEventListener('click', () => {
+      deleteItem(sheetItemId);
+      closeItemActionSheet();
+      renderInventory(sheetSearchVal);
+    });
+    document.getElementById('ia-cancel').addEventListener('click', closeItemActionSheet);
+
+  } else if (sheetState === 'used-some') {
+    const currentQty = parseFloat(item.qty) || 1;
+    contentEl.innerHTML = `
+      <div style="padding:4px 0 16px">
+        <div class="action-sheet-label" style="border:none;margin:0;padding:0 0 12px;font-size:.9rem;color:var(--text)">How many are left?</div>
+        <div class="stepper-row">
+          <button class="step-btn" id="ia-step-minus">−</button>
+          <input class="step-input" id="ia-step-val" type="number" inputmode="decimal" value="${currentQty}" min="0">
+          <button class="step-btn" id="ia-step-plus">+</button>
+        </div>
+      </div>
+      <button class="ia-confirm-btn ia-confirm-orange" id="ia-update-qty">Update quantity</button>
+      <button class="ia-back-btn" id="ia-back-main">Back</button>`;
+
+    const valInput = document.getElementById('ia-step-val');
+    document.getElementById('ia-step-minus').addEventListener('click', () => {
+      valInput.value = Math.max(0, (parseFloat(valInput.value) || 0) - 1);
+    });
+    document.getElementById('ia-step-plus').addEventListener('click', () => {
+      valInput.value = (parseFloat(valInput.value) || 0) + 1;
+    });
+    document.getElementById('ia-update-qty').addEventListener('click', () => {
+      const newQty = parseFloat(valInput.value) || 0;
+      if (newQty <= 0) {
+        logDisposal(item, 'used');
+        deleteItem(sheetItemId);
+        closeItemActionSheet();
+      } else {
+        updateItem(sheetItemId, { qty: String(newQty) });
+        closeItemActionSheet();
+      }
+      renderInventory(sheetSearchVal);
+    });
+    document.getElementById('ia-back-main').addEventListener('click', () => {
+      sheetState = 'main';
+      renderActionSheet();
+    });
+
+  } else if (sheetState === 'set-target') {
+    const defaultVal = parseFloat(item.targetQty) || parseFloat(item.qty) || 1;
+    const hasTarget  = !!item.targetQty;
+    contentEl.innerHTML = `
+      <div style="padding:4px 0 16px">
+        <div class="action-sheet-label" style="border:none;margin:0;padding:0 0 12px;font-size:.9rem;color:var(--text)">Keep at least how many?</div>
+        <div class="stepper-row">
+          <button class="step-btn" id="ia-tgt-minus">−</button>
+          <input class="step-input" id="ia-tgt-val" type="number" inputmode="decimal" value="${defaultVal}" min="1">
+          <button class="step-btn" id="ia-tgt-plus">+</button>
+        </div>
+      </div>
+      <button class="ia-confirm-btn" id="ia-save-target">Save target</button>
+      ${hasTarget ? '<button class="ia-clear-btn" id="ia-remove-target">Remove target</button>' : ''}
+      <button class="ia-back-btn" id="ia-back-main2">Back</button>`;
+
+    const tgtInput = document.getElementById('ia-tgt-val');
+    document.getElementById('ia-tgt-minus').addEventListener('click', () => {
+      tgtInput.value = Math.max(1, (parseFloat(tgtInput.value) || 1) - 1);
+    });
+    document.getElementById('ia-tgt-plus').addEventListener('click', () => {
+      tgtInput.value = (parseFloat(tgtInput.value) || 1) + 1;
+    });
+    document.getElementById('ia-save-target').addEventListener('click', () => {
+      const val = parseFloat(tgtInput.value) || 1;
+      updateItem(sheetItemId, { targetQty: String(val) });
+      closeItemActionSheet();
+      renderInventory(sheetSearchVal);
+    });
+    if (hasTarget) {
+      document.getElementById('ia-remove-target').addEventListener('click', () => {
+        updateItem(sheetItemId, { targetQty: null });
+        closeItemActionSheet();
+        renderInventory(sheetSearchVal);
+      });
+    }
+    document.getElementById('ia-back-main2').addEventListener('click', () => {
+      sheetState = 'main';
+      renderActionSheet();
+    });
+  }
+}
+
+// ── Long-press detection ──────────────────────────────────────────────────────
+
+let lpTimer = null;
+let lpCard  = null;
+let lpFired = false;
+
+function lpCancel() {
+  clearTimeout(lpTimer);
+  lpTimer = null;
+  if (lpCard) { lpCard.classList.remove('pressing'); lpCard = null; }
+  lpFired = false;
+}
+
+function lpStart(card, searchVal) {
+  lpCancel();
+  lpCard  = card;
+  lpFired = false;
+  card.classList.add('pressing');
+  lpTimer = setTimeout(() => {
+    lpFired = true;
+    card.classList.remove('pressing');
+    lpCard = null;
+    lpTimer = null;
+    openItemActionSheet(card.dataset.id, searchVal);
+  }, 500);
 }
 
 function initInventory() {
@@ -188,65 +379,53 @@ function initInventory() {
     renderInventory(search?.value || '');
   });
 
-  // Delegated: edit / finish / waste with inline confirmation
-  document.getElementById('inventory-list')?.addEventListener('click', (e) => {
-    const sv = search?.value || '';
+  // Long-press / tap on inventory list (delegated)
+  const list = document.getElementById('inventory-list');
 
-    // Edit
-    const editBtn = e.target.closest('.edit-btn');
-    if (editBtn) { cancelPendingConfirm(); openItemModal(editBtn.dataset.id); return; }
+  list?.addEventListener('touchstart', (e) => {
+    const card = e.target.closest('.item-card');
+    if (!card) return;
+    e.preventDefault();
+    lpStart(card, search?.value || '');
+  }, { passive: false });
 
-    // First tap — show confirm bar
-    const finishBtn = e.target.closest('.finish-btn');
-    const wasteBtn  = e.target.closest('.waste-btn');
-    if (finishBtn || wasteBtn) {
-      const btn  = finishBtn || wasteBtn;
-      const type = finishBtn ? 'used' : 'wasted';
-      const card = btn.closest('.item-card');
-
-      // If already confirming this card for same action, treat as confirm
-      if (card.dataset.pendingType === type) {
-        removeItem(card.dataset.id, type, sv);
-        return;
-      }
-
-      cancelPendingConfirm();
-      card.dataset.pendingType = type;
-      card.classList.add('confirming');
-
-      const bar   = card.querySelector('.confirm-bar');
-      const label = bar.querySelector('.confirm-label');
-      label.textContent = finishBtn ? '✅ Mark as finished?' : '🗑️ Throw away?';
-      bar.hidden = false;
-      return;
-    }
-
-    // Confirm yes
-    const yesBtn = e.target.closest('.btn-confirm-yes');
-    if (yesBtn) {
-      const card = yesBtn.closest('.item-card');
-      removeItem(card.dataset.id, card.dataset.pendingType, sv);
-      return;
-    }
-
-    // Confirm cancel
-    const noBtn = e.target.closest('.btn-confirm-no');
-    if (noBtn) { cancelPendingConfirm(); return; }
-
-    // Tap outside any action — cancel if tapping a non-action part of a confirming card
-    if (!e.target.closest('.item-actions') && !e.target.closest('.confirm-bar')) {
-      cancelPendingConfirm();
+  list?.addEventListener('touchend', (e) => {
+    if (!lpFired && lpTimer) {
+      // was a tap
+      const card = lpCard;
+      lpCancel();
+      if (card) openItemModal(card.dataset.id);
+    } else {
+      lpCancel();
     }
   });
-}
 
-function cancelPendingConfirm() {
-  document.querySelectorAll('.item-card.confirming').forEach((card) => {
-    card.classList.remove('confirming');
-    delete card.dataset.pendingType;
-    const bar = card.querySelector('.confirm-bar');
-    if (bar) bar.hidden = true;
+  list?.addEventListener('touchmove', () => lpCancel());
+
+  list?.addEventListener('mousedown', (e) => {
+    const card = e.target.closest('.item-card');
+    if (!card) return;
+    lpStart(card, search?.value || '');
   });
+
+  list?.addEventListener('mouseup', () => {
+    if (!lpFired && lpTimer) {
+      const card = lpCard;
+      lpCancel();
+      if (card) openItemModal(card.dataset.id);
+    } else {
+      lpCancel();
+    }
+  });
+
+  list?.addEventListener('mouseleave', () => lpCancel());
+
+  list?.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('.item-card')) e.preventDefault();
+  });
+
+  // Action sheet backdrop
+  document.getElementById('item-action-backdrop')?.addEventListener('click', closeItemActionSheet);
 }
 
 export { initInventory, renderInventory, openItemModal, populateCategorySelect };
