@@ -37,7 +37,7 @@ export async function getSession() {
 // ── CRUD helpers ──────────────────────────────────────────────────────────────
 
 export async function sbList(table) {
-  const { data, error } = await sb.from(table).select('*').order('created_at', { ascending: true });
+  const { data, error } = await sb.from(table).select('*');
   if (error) throw error;
   return data;
 }
