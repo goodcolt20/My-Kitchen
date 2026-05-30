@@ -1,6 +1,6 @@
 {
-  "name": "My Kitchen",
-  "short_name": "Kitchen",
+  "name": "Lovebug's Kitchen",
+  "short_name": "Lovebug's",
   "description": "Household grocery inventory with receipt scanning and meal recommendations",
   "start_url": "/",
   "display": "standalone",
