@@ -1,6 +1,9 @@
 import { isReady, sbList, sbInsert, sbDelete, sbSubscribe } from './sync.js';
 
 let _history = [];
+let _onSyncError = null;
+export function setHistorySyncErrorHandler(fn) { _onSyncError = fn; }
+function syncErr(e) { _onSyncError?.(`History sync failed: ${e?.message || e}`); }
 
 function rowToEntry(row) {
   return {
@@ -21,25 +24,32 @@ function loadLocal() {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
 }
 function saveLocal() {
-  if (!isReady()) localStorage.setItem(LS_KEY, JSON.stringify(_history));
+  localStorage.setItem(LS_KEY, JSON.stringify(_history));
 }
 
-export async function initHistory(onRemoteChange) {
+export async function initHistory(onRemoteChange, onSyncError) {
+  _onSyncError = onSyncError || null;
   if (!isReady()) {
     _history = loadLocal();
     return;
   }
-  const rows = await sbList('history');
-  _history = rows.map(rowToEntry);
-
-  sbSubscribe('history', (event, newRow, oldRow) => {
-    if (event === 'INSERT') {
-      if (!_history.find((h) => h.id === newRow.id)) _history.push(rowToEntry(newRow));
-    } else if (event === 'DELETE') {
-      _history = _history.filter((h) => h.id !== oldRow.id);
-    }
-    onRemoteChange?.();
-  });
+  try {
+    const rows = await sbList('history');
+    _history = rows.map(rowToEntry);
+    saveLocal();
+    sbSubscribe('history', (event, newRow, oldRow) => {
+      if (event === 'INSERT') {
+        if (!_history.find((h) => h.id === newRow.id)) _history.push(rowToEntry(newRow));
+      } else if (event === 'DELETE') {
+        _history = _history.filter((h) => h.id !== oldRow.id);
+      }
+      saveLocal();
+      onRemoteChange?.();
+    });
+  } catch {
+    _history = loadLocal();
+    onSyncError?.('Could not reach Supabase — showing local history.');
+  }
 }
 
 export function getHistory() { return _history; }
@@ -69,14 +79,14 @@ export async function logDisposal(item, type) {
       price:     entry.price != null ? String(entry.price) : null,
       type:      entry.type,
       date:      entry.date,
-    }).catch(() => {});
+    }).catch(syncErr);
   }
 }
 
 export async function deleteHistoryEntry(id) {
   _history = _history.filter((h) => h.id !== id);
   saveLocal();
-  if (isReady()) await sbDelete('history', id).catch(() => {});
+  if (isReady()) await sbDelete('history', id).catch(syncErr);
 }
 
 export async function migrateLocalToSupabase() {
@@ -94,5 +104,6 @@ export async function migrateLocalToSupabase() {
   localStorage.removeItem(LS_KEY);
   const rows = await sbList('history');
   _history = rows.map(rowToEntry);
+  saveLocal();
   return local.length;
 }

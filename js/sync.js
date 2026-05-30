@@ -14,9 +14,15 @@ export function isReady()   { return sb !== null; }
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function signIn(email, password) {
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data.session;
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Connection timed out — check your Supabase URL and anon key in Settings.')), 10000)
+  );
+  const result = await Promise.race([
+    sb.auth.signInWithPassword({ email, password }),
+    timeout,
+  ]);
+  if (result.error) throw result.error;
+  return result.data.session;
 }
 
 export async function signOut() {

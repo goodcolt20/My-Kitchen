@@ -1,9 +1,10 @@
 import { isReady, sbList, sbInsert, sbUpdate, sbDelete, sbSubscribe } from './sync.js';
 
-// In-memory cache — populated on initDb(), kept in sync via realtime
 let _items = [];
+let _onSyncError = null;
+export function setDbSyncErrorHandler(fn) { _onSyncError = fn; }
+function syncErr(e) { _onSyncError?.(`Inventory sync failed: ${e?.message || e}`); }
 
-// Map Supabase snake_case row → app camelCase object
 function rowToItem(row) {
   return {
     id:             row.id,
@@ -30,43 +31,45 @@ function itemToRow(item) {
     expiration_date: item.expirationDate ?? null,
     target_qty:      item.targetQty     ?? null,
   };
-  // strip undefined keys
   Object.keys(row).forEach((k) => row[k] === undefined && delete row[k]);
   return row;
 }
 
-// Called once after login — loads all inventory and sets up realtime
-export async function initDb(onRemoteChange) {
-  if (!isReady()) {
-    _items = loadLocalItems();
-    return;
-  }
-  const rows = await sbList('inventory');
-  _items = rows.map(rowToItem);
-
-  sbSubscribe('inventory', (event, newRow, oldRow) => {
-    if (event === 'INSERT') {
-      if (!_items.find((i) => i.id === newRow.id)) _items.push(rowToItem(newRow));
-    } else if (event === 'UPDATE') {
-      const idx = _items.findIndex((i) => i.id === newRow.id);
-      if (idx !== -1) _items[idx] = rowToItem(newRow);
-    } else if (event === 'DELETE') {
-      _items = _items.filter((i) => i.id !== oldRow.id);
-    }
-    onRemoteChange?.();
-  });
-}
-
-// ── localStorage fallback (no Supabase configured) ───────────────────────────
 const LS_KEY = 'mk_inventory';
 function loadLocalItems() {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
 }
 function saveLocalItems() {
-  if (!isReady()) localStorage.setItem(LS_KEY, JSON.stringify(_items));
+  localStorage.setItem(LS_KEY, JSON.stringify(_items));
 }
 
-// ── Public API (synchronous reads, async writes) ──────────────────────────────
+export async function initDb(onRemoteChange, onSyncError) {
+  _onSyncError = onSyncError || null;
+  if (!isReady()) {
+    _items = loadLocalItems();
+    return;
+  }
+  try {
+    const rows = await sbList('inventory');
+    _items = rows.map(rowToItem);
+    saveLocalItems(); // keep local cache fresh
+    sbSubscribe('inventory', (event, newRow, oldRow) => {
+      if (event === 'INSERT') {
+        if (!_items.find((i) => i.id === newRow.id)) _items.push(rowToItem(newRow));
+      } else if (event === 'UPDATE') {
+        const idx = _items.findIndex((i) => i.id === newRow.id);
+        if (idx !== -1) _items[idx] = rowToItem(newRow);
+      } else if (event === 'DELETE') {
+        _items = _items.filter((i) => i.id !== oldRow.id);
+      }
+      saveLocalItems();
+      onRemoteChange?.();
+    });
+  } catch (err) {
+    _items = loadLocalItems();
+    onSyncError?.('Could not reach Supabase — showing local data.');
+  }
+}
 
 export function getItems()        { return _items; }
 export function getItemById(id)   { return _items.find((i) => i.id === id) || null; }
@@ -76,10 +79,13 @@ export async function addItem(item) {
   _items.push(newItem);
   saveLocalItems();
   if (isReady()) {
-    const row = await sbInsert('inventory', { id: newItem.id, ...itemToRow(item) });
-    // Update id to whatever Supabase returned (should match but just in case)
-    const idx = _items.findIndex((i) => i.id === newItem.id);
-    if (idx !== -1) _items[idx] = rowToItem(row);
+    await sbInsert('inventory', { id: newItem.id, ...itemToRow(item) })
+      .then((row) => {
+        const idx = _items.findIndex((i) => i.id === newItem.id);
+        if (idx !== -1) _items[idx] = rowToItem(row);
+        saveLocalItems();
+      })
+      .catch(syncErr);
   }
   return newItem;
 }
@@ -87,18 +93,17 @@ export async function addItem(item) {
 export async function updateItem(id, updates) {
   const idx = _items.findIndex((i) => i.id === id);
   if (idx === -1) return null;
-  // Handle targetQty: null explicitly (clear it)
   _items[idx] = { ..._items[idx], ...updates, id };
   if (updates.targetQty === null) _items[idx].targetQty = null;
   saveLocalItems();
-  if (isReady()) await sbUpdate('inventory', id, itemToRow(_items[idx]));
+  if (isReady()) await sbUpdate('inventory', id, itemToRow(_items[idx])).catch(syncErr);
   return _items[idx];
 }
 
 export async function deleteItem(id) {
   _items = _items.filter((i) => i.id !== id);
   saveLocalItems();
-  if (isReady()) await sbDelete('inventory', id);
+  if (isReady()) await sbDelete('inventory', id).catch(syncErr);
 }
 
 export async function upsertByName(name, qty, unit, purchaseDate, expirationDate, category, price) {
@@ -130,7 +135,6 @@ export function getItemsSortedByAge() {
   });
 }
 
-// Migrate old localStorage data to Supabase (one-time)
 export async function migrateLocalToSupabase() {
   if (!isReady()) return 0;
   const local = loadLocalItems();
@@ -141,5 +145,6 @@ export async function migrateLocalToSupabase() {
   localStorage.removeItem(LS_KEY);
   const rows = await sbList('inventory');
   _items = rows.map(rowToItem);
+  saveLocalItems();
   return local.length;
 }
