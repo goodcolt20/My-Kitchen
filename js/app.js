@@ -6,6 +6,10 @@ import { initBarcodeScanner } from './barcode.js';
 import { getCategories, saveCategories, resetCategories } from './categories.js';
 import { initInsights, renderInsights } from './insights.js';
 import { initShopping, renderShopping } from './shoppingui.js';
+import { initSync, isReady, getClient, signIn, signOut, getSession } from './sync.js';
+import { initDb, migrateLocalToSupabase as migrateInv } from './db.js';
+import { initHistory, migrateLocalToSupabase as migrateHist } from './history.js';
+import { initShopping as initShoppingData, migrateLocalToSupabase as migrateShop } from './shopping.js';
 
 // ── Tab routing ──────────────────────────────────────────────────────────────
 function showTab(tabId) {
@@ -63,17 +67,22 @@ function readCategoriesFromEditor() {
 
 // ── Settings modal ───────────────────────────────────────────────────────────
 function initSettings() {
-  const modal      = document.getElementById('settings-modal');
-  const keyInput   = document.getElementById('settings-api-key');
-  const saveBtn    = document.getElementById('settings-save-btn');
-  const openBtn    = document.getElementById('settings-open-btn');
-  const closeBtn   = document.getElementById('settings-close-btn');
-  const catEditor  = document.getElementById('categories-editor');
-  const addCatBtn  = document.getElementById('add-category-btn');
-  const resetCatBtn= document.getElementById('reset-categories-btn');
+  const modal       = document.getElementById('settings-modal');
+  const keyInput    = document.getElementById('settings-api-key');
+  const sbUrlInput  = document.getElementById('settings-sb-url');
+  const sbKeyInput  = document.getElementById('settings-sb-key');
+  const saveBtn     = document.getElementById('settings-save-btn');
+  const openBtn     = document.getElementById('settings-open-btn');
+  const closeBtn    = document.getElementById('settings-close-btn');
+  const signOutBtn  = document.getElementById('settings-signout-btn');
+  const catEditor   = document.getElementById('categories-editor');
+  const addCatBtn   = document.getElementById('add-category-btn');
+  const resetCatBtn = document.getElementById('reset-categories-btn');
 
   openBtn?.addEventListener('click', () => {
-    keyInput.value = getApiKey();
+    keyInput.value   = getApiKey();
+    sbUrlInput.value = localStorage.getItem('mk_sb_url') || '';
+    sbKeyInput.value = localStorage.getItem('mk_sb_key') || '';
     renderCategoriesEditor();
     modal.classList.add('open');
     keyInput.focus();
@@ -85,17 +94,32 @@ function initSettings() {
 
   saveBtn?.addEventListener('click', () => {
     setApiKey(keyInput.value);
+    const newUrl = sbUrlInput.value.trim();
+    const newKey = sbKeyInput.value.trim();
+    const oldUrl = localStorage.getItem('mk_sb_url') || '';
+    localStorage.setItem('mk_sb_url', newUrl);
+    localStorage.setItem('mk_sb_key', newKey);
     saveCategories(readCategoriesFromEditor());
     populateCategorySelect();
     renderInventory();
     closeModal();
     const onboarding = document.getElementById('onboarding-banner');
     if (onboarding && getApiKey()) onboarding.hidden = true;
+    // If Supabase URL changed, reload to re-init connection
+    if (newUrl && newUrl !== oldUrl) {
+      showToast('Supabase URL updated — reloading…');
+      setTimeout(() => location.reload(), 1200);
+    }
   });
 
   keyInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBtn.click(); });
 
-  // Add new category row
+  signOutBtn?.addEventListener('click', async () => {
+    await signOut();
+    closeModal();
+    showLoginScreen();
+  });
+
   addCatBtn?.addEventListener('click', () => {
     const row = document.createElement('div');
     row.className = 'cat-row';
@@ -108,17 +132,93 @@ function initSettings() {
     row.querySelector('.cat-name-input')?.focus();
   });
 
-  // Delete category row (delegated)
   catEditor?.addEventListener('click', (e) => {
     const btn = e.target.closest('.delete-cat-btn');
     if (btn && !btn.disabled) btn.closest('.cat-row')?.remove();
   });
 
-  // Reset to defaults
   resetCatBtn?.addEventListener('click', () => {
     resetCategories();
     renderCategoriesEditor();
   });
+}
+
+// ── Login screen ─────────────────────────────────────────────────────────────
+function showLoginScreen() {
+  document.getElementById('login-screen').hidden  = false;
+  document.getElementById('app-shell').hidden     = true;
+}
+
+function hideLoginScreen() {
+  document.getElementById('login-screen').hidden  = true;
+  document.getElementById('app-shell').hidden     = false;
+}
+
+function initLoginScreen() {
+  const loginBtn   = document.getElementById('login-btn');
+  const emailInput = document.getElementById('login-email');
+  const passInput  = document.getElementById('login-password');
+  const errEl      = document.getElementById('login-error');
+
+  async function doLogin() {
+    errEl.hidden = true;
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Signing in…';
+    try {
+      await signIn(emailInput.value.trim(), passInput.value);
+      await bootApp();
+      hideLoginScreen();
+    } catch (err) {
+      errEl.textContent = err.message || 'Sign-in failed.';
+      errEl.hidden = false;
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign In';
+    }
+  }
+
+  loginBtn?.addEventListener('click', doLogin);
+  passInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+}
+
+// ── Toast notification ────────────────────────────────────────────────────────
+function showToast(msg) {
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.className = 'app-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 3000);
+}
+
+// ── Boot sequence ─────────────────────────────────────────────────────────────
+async function bootApp() {
+  const rerender = () => {
+    renderInventory();
+    renderShopping();
+    renderInsights();
+  };
+
+  await Promise.all([
+    initDb(rerender),
+    initHistory(rerender),
+    initShoppingData(rerender),
+  ]);
+
+  // One-time migration from localStorage
+  if (isReady()) {
+    const [inv, hist, shop] = await Promise.all([
+      migrateInv(),
+      migrateHist(),
+      migrateShop(),
+    ]);
+    const total = inv + hist + shop;
+    if (total > 0) showToast(`Migrated ${total} item(s) to shared storage.`);
+  }
 }
 
 // ── Onboarding ───────────────────────────────────────────────────────────────
@@ -139,10 +239,18 @@ function registerSW() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// ── Entry point ───────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
   registerSW();
+
+  // Try to init Supabase from saved config
+  const sbUrl = localStorage.getItem('mk_sb_url');
+  const sbKey = localStorage.getItem('mk_sb_key');
+  if (sbUrl && sbKey) initSync(sbUrl, sbKey);
+
   initNav();
   initSettings();
+  initLoginScreen();
   checkOnboarding();
   initInventory();
   initScanner();
@@ -150,5 +258,20 @@ document.addEventListener('DOMContentLoaded', () => {
   initBarcodeScanner((itemId, prefill) => openItemModal(itemId, prefill));
   initInsights();
   initShopping();
+
+  if (isReady()) {
+    const session = await getSession();
+    if (session) {
+      await bootApp();
+      hideLoginScreen();
+    } else {
+      showLoginScreen();
+    }
+  } else {
+    // No Supabase configured — run in local-only mode
+    await bootApp();
+    hideLoginScreen();
+  }
+
   showTab('inventory');
 });

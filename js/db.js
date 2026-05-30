@@ -1,76 +1,128 @@
-// localStorage-backed inventory store
-const STORAGE_KEY = 'mk_inventory';
+import { isReady, sbList, sbInsert, sbUpdate, sbDelete, sbSubscribe } from './sync.js';
 
-function loadItems() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  } catch {
-    return [];
+// In-memory cache — populated on initDb(), kept in sync via realtime
+let _items = [];
+
+// Map Supabase snake_case row → app camelCase object
+function rowToItem(row) {
+  return {
+    id:             row.id,
+    name:           row.name           || '',
+    qty:            row.qty            || '1',
+    unit:           row.unit           || 'each',
+    price:          row.price          ?? null,
+    category:       row.category       || 'other',
+    purchaseDate:   row.purchase_date  ?? null,
+    expirationDate: row.expiration_date ?? null,
+    targetQty:      row.target_qty     ?? null,
+    createdAt:      row.created_at,
+  };
+}
+
+function itemToRow(item) {
+  const row = {
+    name:            item.name,
+    qty:             item.qty,
+    unit:            item.unit,
+    price:           item.price ?? null,
+    category:        item.category || 'other',
+    purchase_date:   item.purchaseDate  ?? null,
+    expiration_date: item.expirationDate ?? null,
+    target_qty:      item.targetQty     ?? null,
+  };
+  // strip undefined keys
+  Object.keys(row).forEach((k) => row[k] === undefined && delete row[k]);
+  return row;
+}
+
+// Called once after login — loads all inventory and sets up realtime
+export async function initDb(onRemoteChange) {
+  if (!isReady()) {
+    _items = loadLocalItems();
+    return;
   }
+  const rows = await sbList('inventory');
+  _items = rows.map(rowToItem);
+
+  sbSubscribe('inventory', (event, newRow, oldRow) => {
+    if (event === 'INSERT') {
+      if (!_items.find((i) => i.id === newRow.id)) _items.push(rowToItem(newRow));
+    } else if (event === 'UPDATE') {
+      const idx = _items.findIndex((i) => i.id === newRow.id);
+      if (idx !== -1) _items[idx] = rowToItem(newRow);
+    } else if (event === 'DELETE') {
+      _items = _items.filter((i) => i.id !== oldRow.id);
+    }
+    onRemoteChange?.();
+  });
 }
 
-function saveItems(items) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+// ── localStorage fallback (no Supabase configured) ───────────────────────────
+const LS_KEY = 'mk_inventory';
+function loadLocalItems() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
+}
+function saveLocalItems() {
+  if (!isReady()) localStorage.setItem(LS_KEY, JSON.stringify(_items));
 }
 
-function getItems() {
-  return loadItems();
-}
+// ── Public API (synchronous reads, async writes) ──────────────────────────────
 
-function getItemById(id) {
-  return loadItems().find((i) => i.id === id) || null;
-}
+export function getItems()        { return _items; }
+export function getItemById(id)   { return _items.find((i) => i.id === id) || null; }
 
-function addItem(item) {
-  const items = loadItems();
-  const newItem = { ...item, id: crypto.randomUUID(), createdAt: Date.now() };
-  items.push(newItem);
-  saveItems(items);
+export async function addItem(item) {
+  const newItem = { ...item, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+  _items.push(newItem);
+  saveLocalItems();
+  if (isReady()) {
+    const row = await sbInsert('inventory', { id: newItem.id, ...itemToRow(item) });
+    // Update id to whatever Supabase returned (should match but just in case)
+    const idx = _items.findIndex((i) => i.id === newItem.id);
+    if (idx !== -1) _items[idx] = rowToItem(row);
+  }
   return newItem;
 }
 
-function updateItem(id, updates) {
-  const items = loadItems();
-  const idx = items.findIndex((i) => i.id === id);
+export async function updateItem(id, updates) {
+  const idx = _items.findIndex((i) => i.id === id);
   if (idx === -1) return null;
-  items[idx] = { ...items[idx], ...updates, id };
-  saveItems(items);
-  return items[idx];
+  // Handle targetQty: null explicitly (clear it)
+  _items[idx] = { ..._items[idx], ...updates, id };
+  if (updates.targetQty === null) _items[idx].targetQty = null;
+  saveLocalItems();
+  if (isReady()) await sbUpdate('inventory', id, itemToRow(_items[idx]));
+  return _items[idx];
 }
 
-function deleteItem(id) {
-  const items = loadItems().filter((i) => i.id !== id);
-  saveItems(items);
+export async function deleteItem(id) {
+  _items = _items.filter((i) => i.id !== id);
+  saveLocalItems();
+  if (isReady()) await sbDelete('inventory', id);
 }
 
-function upsertByName(name, qty, unit, purchaseDate, expirationDate, category, price) {
-  const items = loadItems();
+export async function upsertByName(name, qty, unit, purchaseDate, expirationDate, category, price) {
   const key = name.toLowerCase().trim();
-  const idx = items.findIndex((i) => i.name.toLowerCase().trim() === key);
-  if (idx !== -1) {
-    const existing = items[idx];
+  const existing = _items.find((i) => i.name.toLowerCase().trim() === key);
+  if (existing) {
     const combined = (parseFloat(existing.qty) || 0) + (parseFloat(qty) || 0);
     const combinedPrice =
       price != null && price !== ''
         ? ((parseFloat(existing.price) || 0) + parseFloat(price)).toString()
         : existing.price;
-    items[idx] = {
-      ...existing,
+    return updateItem(existing.id, {
       qty: combined.toString(),
       unit: unit || existing.unit,
       purchaseDate: purchaseDate || existing.purchaseDate,
       expirationDate: expirationDate || existing.expirationDate,
       price: combinedPrice,
-    };
-    saveItems(items);
-    return items[idx];
+    });
   }
   return addItem({ name, qty: qty.toString(), unit, purchaseDate, expirationDate, category, price });
 }
 
-// Sort by purchaseDate ascending (oldest first), nulls last
-function getItemsSortedByAge() {
-  return loadItems().sort((a, b) => {
+export function getItemsSortedByAge() {
+  return [..._items].sort((a, b) => {
     if (!a.purchaseDate && !b.purchaseDate) return 0;
     if (!a.purchaseDate) return 1;
     if (!b.purchaseDate) return -1;
@@ -78,4 +130,16 @@ function getItemsSortedByAge() {
   });
 }
 
-export { getItems, getItemById, addItem, updateItem, deleteItem, upsertByName, getItemsSortedByAge };
+// Migrate old localStorage data to Supabase (one-time)
+export async function migrateLocalToSupabase() {
+  if (!isReady()) return 0;
+  const local = loadLocalItems();
+  if (!local.length) return 0;
+  for (const item of local) {
+    await sbInsert('inventory', { id: item.id, ...itemToRow(item) }).catch(() => {});
+  }
+  localStorage.removeItem(LS_KEY);
+  const rows = await sbList('inventory');
+  _items = rows.map(rowToItem);
+  return local.length;
+}
