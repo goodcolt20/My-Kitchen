@@ -42,6 +42,9 @@ function targetBadgeHTML(item) {
   return `<span class="target-badge target-ok">✓ ${current} of ${target}</span>`;
 }
 
+// Panel width must match CSS .card-actions-left total width (4 × 64px = 256px)
+const PANEL_W = 256;
+
 function itemCardHTML(item) {
   const expClass = isExpired(item.expirationDate)
     ? 'expired'
@@ -59,16 +62,24 @@ function itemCardHTML(item) {
 
   return `
     <div class="item-card ${expClass}${belowTarget ? ' item-below-target' : ''}" data-id="${item.id}">
-      <span class="item-cat">${cat.emoji}</span>
-      <div class="item-info">
-        <span class="item-name">${escapeHtml(item.name)}${targetBadgeHTML(item)}</span>
-        <span class="item-meta">${escapeHtml(item.qty)} ${escapeHtml(item.unit)}${priceStr}${
+      <div class="card-actions-left">
+        <button class="swa-btn swa-finish" data-id="${item.id}">✅<span>Done</span></button>
+        <button class="swa-btn swa-used"   data-id="${item.id}">➖<span>Used</span></button>
+        <button class="swa-btn swa-waste"  data-id="${item.id}">🗑️<span>Waste</span></button>
+        <button class="swa-btn swa-delete" data-id="${item.id}">✕<span>Delete</span></button>
+      </div>
+      <div class="card-face">
+        <span class="item-cat">${cat.emoji}</span>
+        <div class="item-info">
+          <span class="item-name">${escapeHtml(item.name)}${targetBadgeHTML(item)}</span>
+          <span class="item-meta">${escapeHtml(item.qty)} ${escapeHtml(item.unit)}${priceStr}${
     item.expirationDate
       ? `<span class="exp-label ${expClass}"> · exp ${formatDate(item.expirationDate)}</span>`
       : ''
   }</span>
+        </div>
+        ${belowTarget ? '<div class="item-target-bar"></div>' : ''}
       </div>
-      ${belowTarget ? '<div class="item-target-bar"></div>' : ''}
     </div>`;
 }
 
@@ -119,6 +130,8 @@ function renderInventory(filter = '') {
       </div>`;
     })
     .join('');
+
+  openCard = null;
 }
 
 function populateCategorySelect(selectedId) {
@@ -132,6 +145,7 @@ function populateCategorySelect(selectedId) {
 
 // prefill: { name, qty, unit, price, category, purchaseDate, expirationDate }
 function openItemModal(itemId = null, prefill = null) {
+  closeOpenCard();
   const item  = itemId ? getItemById(itemId) : null;
   const modal = document.getElementById('item-modal');
 
@@ -146,6 +160,7 @@ function openItemModal(itemId = null, prefill = null) {
   document.getElementById('item-price-input').value      = item?.price        || prefill?.price        || '';
   document.getElementById('item-purchase-input').value   = item?.purchaseDate   || prefill?.purchaseDate   || new Date().toISOString().slice(0, 10);
   document.getElementById('item-expiration-input').value = item?.expirationDate || prefill?.expirationDate || '';
+  document.getElementById('item-target-input').value     = item?.targetQty    || '';
 
   modal.classList.add('open');
   document.getElementById('item-name-input').focus();
@@ -155,15 +170,15 @@ function closeItemModal() {
   document.getElementById('item-modal').classList.remove('open');
 }
 
-// ── Action sheet ──────────────────────────────────────────────────────────────
+// ── Action sheet (used-some / set-target states only) ─────────────────────────
 
-let sheetItemId   = null;
-let sheetState    = 'main'; // 'main' | 'used-some' | 'set-target'
+let sheetItemId    = null;
+let sheetState     = 'used-some';
 let sheetSearchVal = '';
 
-function openItemActionSheet(id, searchVal) {
+function openUsedSomeSheet(id, searchVal) {
   sheetItemId    = id;
-  sheetState     = 'main';
+  sheetState     = 'used-some';
   sheetSearchVal = searchVal || '';
   renderActionSheet();
   document.getElementById('item-action-sheet').hidden    = false;
@@ -182,64 +197,9 @@ function renderActionSheet() {
 
   const titleEl   = document.getElementById('item-action-title');
   const contentEl = document.getElementById('item-action-content');
-
   titleEl.textContent = item.name;
 
-  if (sheetState === 'main') {
-    contentEl.innerHTML = `
-      <div class="action-row a-green" id="ia-finished">
-        <span class="action-icon">✅</span>
-        <div><div class="action-label">Finished</div><div class="action-sub">Used it all up</div></div>
-      </div>
-      <div class="action-row a-orange" id="ia-used-some">
-        <span class="action-icon">➖</span>
-        <div><div class="action-label">Used some…</div><div class="action-sub">Update remaining quantity</div></div>
-      </div>
-      <div class="action-row a-red" id="ia-wasted">
-        <span class="action-icon">🗑️</span>
-        <div><div class="action-label">Wasted</div><div class="action-sub">Thrown away or spoiled</div></div>
-      </div>
-      <div class="action-divider"></div>
-      <div class="action-row" id="ia-set-target">
-        <span class="action-icon">🎯</span>
-        <div><div class="action-label">Set target quantity</div><div class="action-sub">Get a reminder when running low</div></div>
-      </div>
-      <div class="action-row a-muted" id="ia-delete">
-        <span class="action-icon">✕</span>
-        <div><div class="action-label">Delete entry</div><div class="action-sub">Remove without logging</div></div>
-      </div>
-      <div style="padding:12px 0 4px">
-        <button class="ia-back-btn" id="ia-cancel">Cancel</button>
-      </div>`;
-
-    document.getElementById('ia-finished').addEventListener('click', () => {
-      logDisposal(item, 'used');
-      deleteItem(sheetItemId);
-      closeItemActionSheet();
-      renderInventory(sheetSearchVal);
-    });
-    document.getElementById('ia-used-some').addEventListener('click', () => {
-      sheetState = 'used-some';
-      renderActionSheet();
-    });
-    document.getElementById('ia-wasted').addEventListener('click', () => {
-      logDisposal(item, 'wasted');
-      deleteItem(sheetItemId);
-      closeItemActionSheet();
-      renderInventory(sheetSearchVal);
-    });
-    document.getElementById('ia-set-target').addEventListener('click', () => {
-      sheetState = 'set-target';
-      renderActionSheet();
-    });
-    document.getElementById('ia-delete').addEventListener('click', () => {
-      deleteItem(sheetItemId);
-      closeItemActionSheet();
-      renderInventory(sheetSearchVal);
-    });
-    document.getElementById('ia-cancel').addEventListener('click', closeItemActionSheet);
-
-  } else if (sheetState === 'used-some') {
+  if (sheetState === 'used-some') {
     const currentQty = parseFloat(item.qty) || 1;
     contentEl.innerHTML = `
       <div style="padding:4px 0 16px">
@@ -251,7 +211,7 @@ function renderActionSheet() {
         </div>
       </div>
       <button class="ia-confirm-btn ia-confirm-orange" id="ia-update-qty">Update quantity</button>
-      <button class="ia-back-btn" id="ia-back-main">Back</button>`;
+      <button class="ia-back-btn" id="ia-cancel-sheet">Cancel</button>`;
 
     const valInput = document.getElementById('ia-step-val');
     document.getElementById('ia-step-minus').addEventListener('click', () => {
@@ -265,78 +225,52 @@ function renderActionSheet() {
       if (newQty <= 0) {
         logDisposal(item, 'used');
         deleteItem(sheetItemId);
-        closeItemActionSheet();
       } else {
         updateItem(sheetItemId, { qty: String(newQty) });
-        closeItemActionSheet();
       }
-      renderInventory(sheetSearchVal);
-    });
-    document.getElementById('ia-back-main').addEventListener('click', () => {
-      sheetState = 'main';
-      renderActionSheet();
-    });
-
-  } else if (sheetState === 'set-target') {
-    const defaultVal = parseFloat(item.targetQty) || parseFloat(item.qty) || 1;
-    const hasTarget  = !!item.targetQty;
-    contentEl.innerHTML = `
-      <div style="padding:4px 0 16px">
-        <div class="action-sheet-label" style="border:none;margin:0;padding:0 0 12px;font-size:.9rem;color:var(--text)">Keep at least how many?</div>
-        <div class="stepper-row">
-          <button class="step-btn" id="ia-tgt-minus">−</button>
-          <input class="step-input" id="ia-tgt-val" type="number" inputmode="decimal" value="${defaultVal}" min="1">
-          <button class="step-btn" id="ia-tgt-plus">+</button>
-        </div>
-      </div>
-      <button class="ia-confirm-btn" id="ia-save-target">Save target</button>
-      ${hasTarget ? '<button class="ia-clear-btn" id="ia-remove-target">Remove target</button>' : ''}
-      <button class="ia-back-btn" id="ia-back-main2">Back</button>`;
-
-    const tgtInput = document.getElementById('ia-tgt-val');
-    document.getElementById('ia-tgt-minus').addEventListener('click', () => {
-      tgtInput.value = Math.max(1, (parseFloat(tgtInput.value) || 1) - 1);
-    });
-    document.getElementById('ia-tgt-plus').addEventListener('click', () => {
-      tgtInput.value = (parseFloat(tgtInput.value) || 1) + 1;
-    });
-    document.getElementById('ia-save-target').addEventListener('click', () => {
-      const val = parseFloat(tgtInput.value) || 1;
-      updateItem(sheetItemId, { targetQty: String(val) });
       closeItemActionSheet();
       renderInventory(sheetSearchVal);
     });
-    if (hasTarget) {
-      document.getElementById('ia-remove-target').addEventListener('click', () => {
-        updateItem(sheetItemId, { targetQty: null });
-        closeItemActionSheet();
-        renderInventory(sheetSearchVal);
-      });
-    }
-    document.getElementById('ia-back-main2').addEventListener('click', () => {
-      sheetState = 'main';
-      renderActionSheet();
-    });
+    document.getElementById('ia-cancel-sheet').addEventListener('click', closeItemActionSheet);
   }
 }
 
-// ── Long-press detection ──────────────────────────────────────────────────────
-// Strategy: click = tap (reliable cross-platform), touch events = long-press only.
-// lpFired flag suppresses the click that follows a completed long-press.
+// ── Swipe gesture state ───────────────────────────────────────────────────────
 
-const LP_DELAY = 500;
-const LP_MOVE_THRESHOLD = 8;
+let openCard   = null; // card element whose panel is currently open
+let swStartX   = 0;
+let swStartY   = 0;
+let swCard     = null;
+let swFace     = null;
+let swDragging = false;
+let swAxis     = null; // 'h' | 'v' | null — locked once determined
 
-let lpTimer  = null;
-let lpCard   = null;
-let lpFired  = false;
-let lpStartX = 0;
-let lpStartY = 0;
+const SWIPE_THRESHOLD   = 60;  // px to commit a swipe
+const AXIS_LOCK         = 8;   // px movement before we decide h vs v
 
-function lpCancel() {
-  clearTimeout(lpTimer);
-  lpTimer = null;
-  if (lpCard) { lpCard.classList.remove('pressing'); lpCard = null; }
+function getFace(card) {
+  return card.querySelector('.card-face');
+}
+
+function closeOpenCard(animate = true) {
+  if (!openCard) return;
+  const face = getFace(openCard);
+  if (face) {
+    face.style.transition = animate ? '' : 'none';
+    face.style.transform  = '';
+  }
+  openCard.classList.remove('swipe-open');
+  openCard = null;
+}
+
+function snapOpen(card) {
+  closeOpenCard();
+  const face = getFace(card);
+  if (!face) return;
+  face.style.transition = '';
+  face.style.transform  = `translateX(-${PANEL_W}px)`;
+  card.classList.add('swipe-open');
+  openCard = card;
 }
 
 function initInventory() {
@@ -356,11 +290,13 @@ function initInventory() {
     e.preventDefault();
     const id = document.getElementById('item-id').value;
     const rawPrice = document.getElementById('item-price-input').value.trim();
+    const rawTarget = document.getElementById('item-target-input').value.trim();
     const data = {
       name:           document.getElementById('item-name-input').value.trim(),
       qty:            document.getElementById('item-qty-input').value.trim(),
       unit:           document.getElementById('item-unit-input').value.trim(),
-      price:          rawPrice !== '' ? String(parseFloat(rawPrice) || '') : null,
+      price:          rawPrice  !== '' ? String(parseFloat(rawPrice)  || '') : null,
+      targetQty:      rawTarget !== '' ? String(parseFloat(rawTarget) || '') : null,
       category:       document.getElementById('item-category-input').value,
       purchaseDate:   document.getElementById('item-purchase-input').value || null,
       expirationDate: document.getElementById('item-expiration-input').value || null,
@@ -371,55 +307,136 @@ function initInventory() {
     renderInventory(search?.value || '');
   });
 
-  // ── Gesture handling on inventory list ──────────────────────────────────────
+  // ── Swipe gestures on inventory list ─────────────────────────────────────────
   const list = document.getElementById('inventory-list');
 
-  // touchstart — start long-press timer
   list?.addEventListener('touchstart', (e) => {
     const card = e.target.closest('.item-card');
-    if (!card) return;
-    lpCancel();
-    lpFired  = false;
-    lpCard   = card;
-    const t  = e.touches[0];
-    lpStartX = t.clientX;
-    lpStartY = t.clientY;
-    card.classList.add('pressing');
-    lpTimer = setTimeout(() => {
-      lpFired = true;
-      card.classList.remove('pressing');
-      lpCard  = null;
-      lpTimer = null;
-      openItemActionSheet(card.dataset.id, search?.value || '');
-    }, LP_DELAY);
+    if (!card) { closeOpenCard(); return; }
+    const t   = e.touches[0];
+    swCard    = card;
+    swFace    = getFace(card);
+    swStartX  = t.clientX;
+    swStartY  = t.clientY;
+    swDragging = false;
+    swAxis    = null;
+    if (swFace) swFace.style.transition = 'none'; // disable during drag
   }, { passive: true });
 
-  // touchmove — cancel if moved beyond threshold (finger is scrolling)
   list?.addEventListener('touchmove', (e) => {
-    if (!lpTimer) return;
-    const t = e.touches[0];
-    if (Math.abs(t.clientX - lpStartX) > LP_MOVE_THRESHOLD ||
-        Math.abs(t.clientY - lpStartY) > LP_MOVE_THRESHOLD) lpCancel();
+    if (!swCard || !swFace) return;
+    const t  = e.touches[0];
+    const dx = t.clientX - swStartX;
+    const dy = t.clientY - swStartY;
+
+    // Determine axis on first significant movement
+    if (!swAxis && (Math.abs(dx) > AXIS_LOCK || Math.abs(dy) > AXIS_LOCK)) {
+      swAxis = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+    }
+    if (swAxis !== 'h') return; // vertical scroll — leave alone
+
+    swDragging = true;
+
+    // Current offset = already-open amount + drag delta
+    const base    = openCard === swCard ? -PANEL_W : 0;
+    const raw     = base + dx;
+    // Clamp: left max = -PANEL_W, right max = +30 (small right-peek)
+    const clamped = Math.max(-PANEL_W, Math.min(30, raw));
+    swFace.style.transform = `translateX(${clamped}px)`;
   }, { passive: true });
 
-  // touchend — cancel timer; the click event below handles the tap
-  list?.addEventListener('touchend', () => lpCancel());
-  list?.addEventListener('touchcancel', () => lpCancel());
+  list?.addEventListener('touchend', (e) => {
+    if (!swCard || !swFace) { swCard = null; swFace = null; return; }
 
-  // click — tap handler (fires reliably after quick touch-release, or mouse click)
+    swFace.style.transition = ''; // re-enable animation
+
+    if (!swDragging) {
+      // Pure tap — if a different card was open, close it; else open edit modal
+      if (openCard && openCard !== swCard) {
+        closeOpenCard();
+      } else if (!openCard) {
+        const id = swCard.dataset.id;
+        swCard = null; swFace = null;
+        openItemModal(id);
+        return;
+      } else {
+        closeOpenCard(); // tap on already-open card closes it
+      }
+      swCard = null; swFace = null;
+      return;
+    }
+
+    const dx = e.changedTouches[0].clientX - swStartX;
+    const base = openCard === swCard ? -PANEL_W : 0;
+    const total = base + dx;
+
+    if (total < -SWIPE_THRESHOLD) {
+      snapOpen(swCard);
+    } else if (total > SWIPE_THRESHOLD && openCard === swCard) {
+      closeOpenCard();
+    } else if (dx > SWIPE_THRESHOLD && !openCard) {
+      // Swipe right on a closed card → edit
+      const id = swCard.dataset.id;
+      swFace.style.transform = '';
+      swCard = null; swFace = null;
+      openItemModal(id);
+      return;
+    } else {
+      // Snap back
+      swFace.style.transform = openCard === swCard ? `translateX(-${PANEL_W}px)` : '';
+      if (openCard !== swCard) openCard = null;
+    }
+
+    swCard = null; swFace = null;
+  });
+
+  list?.addEventListener('touchcancel', () => {
+    if (swFace) { swFace.style.transition = ''; swFace.style.transform = openCard === swCard ? `translateX(-${PANEL_W}px)` : ''; }
+    swCard = null; swFace = null; swDragging = false; swAxis = null;
+  });
+
+  // Mouse click (desktop) — tap on card opens edit modal
   list?.addEventListener('click', (e) => {
-    if (lpFired) { lpFired = false; return; } // long-press just completed — ignore
+    // Ignore if a swipe action button was clicked (handled separately below)
+    if (e.target.closest('.swa-btn')) return;
+    if (openCard) { closeOpenCard(); return; }
     const card = e.target.closest('.item-card');
     if (card) openItemModal(card.dataset.id);
   });
 
-  // Suppress OS context menu on long-press
-  list?.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('.item-card')) e.preventDefault();
+  // Swipe action buttons (delegated)
+  list?.addEventListener('click', (e) => {
+    const sv = search?.value || '';
+    const btn = e.target.closest('.swa-btn');
+    if (!btn) return;
+    const id   = btn.dataset.id;
+    const item = getItemById(id);
+    if (!item) return;
+
+    closeOpenCard(false);
+
+    if (btn.classList.contains('swa-finish')) {
+      logDisposal(item, 'used');
+      deleteItem(id);
+      renderInventory(sv);
+    } else if (btn.classList.contains('swa-used')) {
+      openUsedSomeSheet(id, sv);
+    } else if (btn.classList.contains('swa-waste')) {
+      logDisposal(item, 'wasted');
+      deleteItem(id);
+      renderInventory(sv);
+    } else if (btn.classList.contains('swa-delete')) {
+      deleteItem(id);
+      renderInventory(sv);
+    }
   });
 
   // Action sheet backdrop
   document.getElementById('item-action-backdrop')?.addEventListener('click', closeItemActionSheet);
+  // Suppress OS context menu
+  list?.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('.item-card')) e.preventDefault();
+  });
 }
 
 export { initInventory, renderInventory, openItemModal, populateCategorySelect };
