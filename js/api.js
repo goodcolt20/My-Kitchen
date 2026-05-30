@@ -77,11 +77,16 @@ async function scanReceipt(imageFile) {
     "name": "item name",
     "qty": "1",
     "unit": "each",
+    "price": "3.49",
     "category": "produce|dairy|meat|bakery|frozen|beverages|pantry|household|other",
     "expirationDate": null
   }
 ]
-Use "each" for countable items. Use common units (lbs, oz, gal, L, etc) when visible on the receipt. If no quantity is visible, use "1". Return only the JSON array.`,
+Rules:
+- "price" is the total line-item price for this item as it appears on the receipt (e.g. "3.49"). Use null if not visible.
+- "qty" is the quantity purchased. Use "each" unit for countable items. Use common units (lbs, oz, gal, L, kg) when visible.
+- If no quantity is visible use "1".
+Return only the JSON array, no other text.`,
           },
         ],
       },
@@ -110,6 +115,7 @@ Use "each" for countable items. Use common units (lbs, oz, gal, L, etc) when vis
       name: String(item.name || '').trim(),
       qty: String(item.qty || '1').trim(),
       unit: String(item.unit || 'each').trim(),
+      price: item.price != null && item.price !== '' ? String(parseFloat(item.price) || '') : null,
       category: String(item.category || 'other').trim(),
       expirationDate: item.expirationDate || null,
       purchaseDate: new Date().toISOString().slice(0, 10),
