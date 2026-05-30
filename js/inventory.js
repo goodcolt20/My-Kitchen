@@ -56,6 +56,11 @@ function itemCardHTML(item) {
         <button class="btn-icon finish-btn" data-id="${item.id}" title="Finished — used it up">✅</button>
         <button class="btn-icon waste-btn"  data-id="${item.id}" title="Wasted — threw it away">🗑️</button>
       </div>
+      <div class="confirm-bar" hidden>
+        <span class="confirm-label"></span>
+        <button class="btn-confirm-yes">✓ Yes</button>
+        <button class="btn-confirm-no">✕ Cancel</button>
+      </div>
     </div>`;
 }
 
@@ -173,15 +178,64 @@ function initInventory() {
     renderInventory(search?.value || '');
   });
 
-  // Delegated: edit / finish / waste
+  // Delegated: edit / finish / waste with inline confirmation
   document.getElementById('inventory-list')?.addEventListener('click', (e) => {
-    const editBtn   = e.target.closest('.edit-btn');
+    const sv = search?.value || '';
+
+    // Edit
+    const editBtn = e.target.closest('.edit-btn');
+    if (editBtn) { cancelPendingConfirm(); openItemModal(editBtn.dataset.id); return; }
+
+    // First tap — show confirm bar
     const finishBtn = e.target.closest('.finish-btn');
     const wasteBtn  = e.target.closest('.waste-btn');
-    const sv = search?.value || '';
-    if (editBtn)   openItemModal(editBtn.dataset.id);
-    if (finishBtn) removeItem(finishBtn.dataset.id, 'used',   sv);
-    if (wasteBtn)  removeItem(wasteBtn.dataset.id,  'wasted', sv);
+    if (finishBtn || wasteBtn) {
+      const btn  = finishBtn || wasteBtn;
+      const type = finishBtn ? 'used' : 'wasted';
+      const card = btn.closest('.item-card');
+
+      // If already confirming this card for same action, treat as confirm
+      if (card.dataset.pendingType === type) {
+        removeItem(card.dataset.id, type, sv);
+        return;
+      }
+
+      cancelPendingConfirm();
+      card.dataset.pendingType = type;
+      card.classList.add('confirming');
+
+      const bar   = card.querySelector('.confirm-bar');
+      const label = bar.querySelector('.confirm-label');
+      label.textContent = finishBtn ? '✅ Mark as finished?' : '🗑️ Throw away?';
+      bar.hidden = false;
+      return;
+    }
+
+    // Confirm yes
+    const yesBtn = e.target.closest('.btn-confirm-yes');
+    if (yesBtn) {
+      const card = yesBtn.closest('.item-card');
+      removeItem(card.dataset.id, card.dataset.pendingType, sv);
+      return;
+    }
+
+    // Confirm cancel
+    const noBtn = e.target.closest('.btn-confirm-no');
+    if (noBtn) { cancelPendingConfirm(); return; }
+
+    // Tap outside any action — cancel if tapping a non-action part of a confirming card
+    if (!e.target.closest('.item-actions') && !e.target.closest('.confirm-bar')) {
+      cancelPendingConfirm();
+    }
+  });
+}
+
+function cancelPendingConfirm() {
+  document.querySelectorAll('.item-card.confirming').forEach((card) => {
+    card.classList.remove('confirming');
+    delete card.dataset.pendingType;
+    const bar = card.querySelector('.confirm-bar');
+    if (bar) bar.hidden = true;
   });
 }
 
