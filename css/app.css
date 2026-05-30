@@ -537,11 +537,13 @@ body {
 .waste-confirm-bar {
   width: 100%;
   display: flex;
+  align-items: center;
   gap: 8px;
   justify-content: flex-end;
   padding-top: 8px;
   animation: slideDown 0.15s ease;
 }
+.waste-confirm-label { flex: 1; font-size: 0.82rem; font-weight: 600; color: var(--text-main); }
 
 /* ── Settings ── */
 .settings-key-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
