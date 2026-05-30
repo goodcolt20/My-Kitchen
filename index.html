@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2d6a4f">
   <meta name="description" content="Household grocery inventory with receipt scanning and meal recommendations">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.anthropic.com https://world.openfoodfacts.org; img-src 'self' blob: data:; script-src 'self'; style-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.anthropic.com https://world.openfoodfacts.org https://*.supabase.co wss://*.supabase.co; img-src 'self' blob: data:; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline';">
   <title>Lovebug's Kitchen</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
@@ -13,6 +13,22 @@
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
+
+<!-- ── Login screen ── -->
+<div id="login-screen" class="login-screen" hidden>
+  <div class="login-card">
+    <div class="login-logo">🐞</div>
+    <h2 class="login-title">Lovebug's Kitchen</h2>
+    <input id="login-email" class="form-input" type="email" placeholder="Email" autocomplete="email">
+    <input id="login-password" class="form-input" type="password" placeholder="Password" autocomplete="current-password" style="margin-top:10px">
+    <button id="login-btn" class="btn-primary" style="width:100%;margin-top:16px">Sign In</button>
+    <p id="login-error" class="login-error" hidden></p>
+    <p class="login-hint">No account yet? Ask your partner to invite you via Supabase dashboard.</p>
+  </div>
+</div>
+
+<!-- ── App shell (hidden until authenticated) ── -->
+<div id="app-shell">
 
 <!-- ── Header ── -->
 <header class="app-header">
@@ -352,6 +368,20 @@
       <button class="btn-icon" id="settings-close-btn" aria-label="Close">✕</button>
     </div>
 
+    <!-- Supabase sync -->
+    <div class="form-group">
+      <label class="form-label" for="settings-sb-url">Supabase URL <span class="form-label-note">(optional — for shared sync)</span></label>
+      <input class="form-input settings-key-input" id="settings-sb-url" type="url" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="settings-sb-key">Supabase Anon Key</label>
+      <input class="form-input settings-key-input" id="settings-sb-key" type="password" placeholder="eyJ…" autocomplete="off" spellcheck="false">
+      <p class="settings-key-note">Stored on this device only. Enables real-time shared pantry with your partner.</p>
+    </div>
+    <button type="button" class="btn-secondary btn-sm" id="settings-signout-btn" style="margin-bottom:12px">Sign Out</button>
+
+    <div class="settings-divider"></div>
+
     <!-- API key -->
     <div class="form-group">
       <label class="form-label" for="settings-api-key">Anthropic API Key</label>
@@ -381,6 +411,8 @@
   <div id="item-action-title" class="action-sheet-label"></div>
   <div id="item-action-content"></div>
 </div>
+
+</div><!-- end #app-shell -->
 
 <script type="module" src="/js/app.js"></script>
 </body>

@@ -1,40 +1,117 @@
-const LIST_KEY = 'mk_shopping';
-const SUGGESTIONS_KEY = 'mk_suggestions';
+import { isReady, sbList, sbInsert, sbUpdate, sbDelete, sbSubscribe } from './sync.js';
 
-function getList()        { try { return JSON.parse(localStorage.getItem(LIST_KEY) || '[]'); } catch { return []; } }
-function getSuggestions() { try { return JSON.parse(localStorage.getItem(SUGGESTIONS_KEY) || '[]'); } catch { return []; } }
-function saveList(items)        { localStorage.setItem(LIST_KEY, JSON.stringify(items)); }
-function saveSuggestions(items) { localStorage.setItem(SUGGESTIONS_KEY, JSON.stringify(items)); }
+let _list        = [];
+let _suggestions = [];
 
-function addListItem(name) {
-  const list = getList();
-  list.push({ id: crypto.randomUUID(), name: name.trim(), checked: false });
-  saveList(list);
+const LS_LIST = 'mk_shopping';
+const LS_SUGG = 'mk_suggestions';
+function loadLocalList() { try { return JSON.parse(localStorage.getItem(LS_LIST) || '[]'); } catch { return []; } }
+function loadLocalSugg() { try { return JSON.parse(localStorage.getItem(LS_SUGG) || '[]'); } catch { return []; } }
+function saveLocalList() { if (!isReady()) localStorage.setItem(LS_LIST, JSON.stringify(_list)); }
+function saveLocalSugg() { if (!isReady()) localStorage.setItem(LS_SUGG, JSON.stringify(_suggestions)); }
+
+export async function initShopping(onRemoteChange) {
+  if (!isReady()) {
+    _list        = loadLocalList();
+    _suggestions = loadLocalSugg();
+    return;
+  }
+  const [listRows, suggRows] = await Promise.all([
+    sbList('shopping_list'),
+    sbList('shopping_suggestions'),
+  ]);
+  _list        = listRows.map((r) => ({ id: r.id, name: r.name, checked: r.checked }));
+  _suggestions = suggRows.map((r) => ({ id: r.id, name: r.name }));
+
+  sbSubscribe('shopping_list', (event, newRow, oldRow) => {
+    if (event === 'INSERT') {
+      if (!_list.find((i) => i.id === newRow.id))
+        _list.push({ id: newRow.id, name: newRow.name, checked: newRow.checked });
+    } else if (event === 'UPDATE') {
+      const idx = _list.findIndex((i) => i.id === newRow.id);
+      if (idx !== -1) _list[idx] = { id: newRow.id, name: newRow.name, checked: newRow.checked };
+    } else if (event === 'DELETE') {
+      _list = _list.filter((i) => i.id !== oldRow.id);
+    }
+    onRemoteChange?.();
+  });
+
+  sbSubscribe('shopping_suggestions', (event, newRow, oldRow) => {
+    if (event === 'INSERT') {
+      if (!_suggestions.find((i) => i.id === newRow.id))
+        _suggestions.push({ id: newRow.id, name: newRow.name });
+    } else if (event === 'DELETE') {
+      _suggestions = _suggestions.filter((i) => i.id !== oldRow.id);
+    }
+    onRemoteChange?.();
+  });
 }
 
-function toggleListItem(id) {
-  saveList(getList().map((i) => i.id === id ? { ...i, checked: !i.checked } : i));
+export function getList()        { return _list; }
+export function getSuggestions() { return _suggestions; }
+
+export async function addListItem(name) {
+  const item = { id: crypto.randomUUID(), name: name.trim(), checked: false };
+  _list.push(item);
+  saveLocalList();
+  if (isReady()) await sbInsert('shopping_list', { id: item.id, name: item.name, checked: false }).catch(() => {});
 }
 
-function removeListItem(id)       { saveList(getList().filter((i) => i.id !== id)); }
-function removeSuggestion(id)     { saveSuggestions(getSuggestions().filter((i) => i.id !== id)); }
-
-function addSuggestionToList(id) {
-  const sug = getSuggestions().find((i) => i.id === id);
-  if (sug) { addListItem(sug.name); removeSuggestion(id); }
+export async function toggleListItem(id) {
+  const idx = _list.findIndex((i) => i.id === id);
+  if (idx === -1) return;
+  _list[idx] = { ..._list[idx], checked: !_list[idx].checked };
+  saveLocalList();
+  if (isReady()) await sbUpdate('shopping_list', id, { checked: _list[idx].checked }).catch(() => {});
 }
 
-function addAllSuggestions() {
-  getSuggestions().forEach((s) => addListItem(s.name));
-  saveSuggestions([]);
+export async function removeListItem(id) {
+  _list = _list.filter((i) => i.id !== id);
+  saveLocalList();
+  if (isReady()) await sbDelete('shopping_list', id).catch(() => {});
 }
 
-function storeSuggestions(names) {
-  saveSuggestions(names.map((name) => ({ id: crypto.randomUUID(), name })));
+export async function removeSuggestion(id) {
+  _suggestions = _suggestions.filter((i) => i.id !== id);
+  saveLocalSugg();
+  if (isReady()) await sbDelete('shopping_suggestions', id).catch(() => {});
 }
 
-export {
-  getList, getSuggestions, addListItem, toggleListItem,
-  removeListItem, removeSuggestion, addSuggestionToList,
-  addAllSuggestions, storeSuggestions,
-};
+export async function addSuggestionToList(id) {
+  const sug = _suggestions.find((i) => i.id === id);
+  if (sug) { await addListItem(sug.name); await removeSuggestion(id); }
+}
+
+export async function addAllSuggestions() {
+  for (const s of [..._suggestions]) await addListItem(s.name);
+  const ids = _suggestions.map((s) => s.id);
+  _suggestions = [];
+  saveLocalSugg();
+  if (isReady()) {
+    for (const id of ids) await sbDelete('shopping_suggestions', id).catch(() => {});
+  }
+}
+
+export async function storeSuggestions(names) {
+  // Clear existing suggestions first
+  const oldIds = _suggestions.map((s) => s.id);
+  _suggestions = names.map((name) => ({ id: crypto.randomUUID(), name }));
+  saveLocalSugg();
+  if (isReady()) {
+    for (const id of oldIds) await sbDelete('shopping_suggestions', id).catch(() => {});
+    for (const s of _suggestions) await sbInsert('shopping_suggestions', { id: s.id, name: s.name }).catch(() => {});
+  }
+}
+
+export async function migrateLocalToSupabase() {
+  if (!isReady()) return 0;
+  const localList = loadLocalList();
+  const localSugg = loadLocalSugg();
+  for (const i of localList)
+    await sbInsert('shopping_list', { id: i.id, name: i.name, checked: i.checked }).catch(() => {});
+  for (const s of localSugg)
+    await sbInsert('shopping_suggestions', { id: s.id, name: s.name }).catch(() => {});
+  localStorage.removeItem(LS_LIST);
+  localStorage.removeItem(LS_SUGG);
+  return localList.length + localSugg.length;
+}

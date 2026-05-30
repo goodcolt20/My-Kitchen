@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `my-kitchen-${CACHE_VERSION}`;
 const APP_SHELL = [
   '/',
@@ -16,6 +16,7 @@ const APP_SHELL = [
   '/js/inventory.js',
   '/js/scanner.js',
   '/js/recommendations.js',
+  '/js/sync.js',
   '/js/app.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -37,8 +38,10 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Network-only for Claude API calls
-  if (e.request.url.includes('api.anthropic.com')) {
+  // Network-only for external API calls
+  if (e.request.url.includes('api.anthropic.com') ||
+      e.request.url.includes('supabase.co') ||
+      e.request.url.includes('cdn.jsdelivr.net')) {
     return;
   }
   e.respondWith(
