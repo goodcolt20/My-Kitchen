@@ -177,18 +177,13 @@ function renderWasteLog() {
   el.innerHTML = wasted.map((h) => {
     const cat = getCategoryById(h.category);
     return `
-      <div class="waste-item" data-id="${escapeHtml(h.id)}">
+      <div class="waste-item" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.itemName)}">
         <span class="waste-emoji">${cat.emoji}</span>
         <div class="waste-info">
           <span class="waste-name">${escapeHtml(h.itemName)}</span>
           <span class="waste-meta">${escapeHtml(h.qty)} ${escapeHtml(h.unit)} · ${h.date}</span>
         </div>
         <span class="waste-price ${h.price ? 'waste-price-set' : ''}">${h.price ? fmt(h.price) : '—'}</span>
-        <div class="waste-confirm-bar" hidden>
-          <span class="waste-confirm-label">Delete?</span>
-          <button class="btn-confirm-yes waste-confirm-yes">Yes</button>
-          <button class="btn-confirm-no waste-confirm-no">No</button>
-        </div>
       </div>`;
   }).join('');
 
@@ -196,12 +191,38 @@ function renderWasteLog() {
 }
 
 const LONG_PRESS_MS = 500;
+let activeWasteId = null;
 
-function cancelAllWasteConfirms() {
-  document.querySelectorAll('.waste-item.confirming').forEach((el) => {
-    el.classList.remove('confirming', 'long-press-active');
-    el.querySelector('.waste-confirm-bar').hidden = true;
+function showWasteActionSheet(id, name) {
+  activeWasteId = id;
+  const sheet    = document.getElementById('waste-action-sheet');
+  const backdrop = document.getElementById('waste-action-backdrop');
+  const label    = document.getElementById('waste-action-label');
+  label.textContent = name;
+  sheet.hidden    = false;
+  backdrop.hidden = false;
+}
+
+function hideWasteActionSheet() {
+  document.getElementById('waste-action-sheet').hidden    = true;
+  document.getElementById('waste-action-backdrop').hidden = true;
+  activeWasteId = null;
+}
+
+function initWasteActionSheet() {
+  document.getElementById('waste-action-delete')?.addEventListener('click', () => {
+    if (!activeWasteId) return;
+    const item = document.querySelector(`.waste-item[data-id="${activeWasteId}"]`);
+    hideWasteActionSheet();
+    if (item) {
+      item.classList.add('long-press-removing');
+      setTimeout(() => { deleteHistoryEntry(activeWasteId); renderWasteLog(); renderKPIs(); }, 250);
+    } else {
+      deleteHistoryEntry(activeWasteId); renderWasteLog(); renderKPIs();
+    }
   });
+  document.getElementById('waste-action-cancel')?.addEventListener('click', hideWasteActionSheet);
+  document.getElementById('waste-action-backdrop')?.addEventListener('click', hideWasteActionSheet);
 }
 
 function attachWasteLogLongPress(container) {
@@ -209,16 +230,12 @@ function attachWasteLogLongPress(container) {
   let target = null;
 
   function start(el) {
-    if (el.classList.contains('confirming')) return;
     target = el;
     el.classList.add('long-press-active');
     timer = setTimeout(() => {
-      cancelAllWasteConfirms();
       el.classList.remove('long-press-active');
-      el.classList.add('confirming');
-      el.querySelector('.waste-confirm-bar').hidden = false;
-      target = null;
-      timer = null;
+      target = null; timer = null;
+      showWasteActionSheet(el.dataset.id, el.dataset.name);
     }, LONG_PRESS_MS);
   }
 
@@ -235,19 +252,6 @@ function attachWasteLogLongPress(container) {
     item.addEventListener('mouseup',     cancel);
     item.addEventListener('mouseleave',  cancel);
     item.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    item.querySelector('.waste-confirm-yes').addEventListener('click', () => {
-      item.classList.add('long-press-removing');
-      setTimeout(() => {
-        deleteHistoryEntry(item.dataset.id);
-        renderWasteLog();
-        renderKPIs();
-      }, 250);
-    });
-
-    item.querySelector('.waste-confirm-no').addEventListener('click', () => {
-      cancelAllWasteConfirms();
-    });
   });
 }
 
@@ -260,7 +264,7 @@ function renderInsights() {
 }
 
 function initInsights() {
-  // Insights are rendered on demand when the tab is opened (via showTab in app.js)
+  initWasteActionSheet();
 }
 
 export { initInsights, renderInsights };
