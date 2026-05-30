@@ -5,6 +5,7 @@ import { getApiKey, setApiKey } from './api.js';
 import { initBarcodeScanner } from './barcode.js';
 import { getCategories, saveCategories, resetCategories } from './categories.js';
 import { initInsights, renderInsights } from './insights.js';
+import { initShopping, renderShopping } from './shoppingui.js';
 
 // ── Tab routing ──────────────────────────────────────────────────────────────
 function showTab(tabId) {
@@ -20,6 +21,7 @@ function showTab(tabId) {
   if (fab) fab.hidden = tabId !== 'inventory';
 
   if (tabId === 'inventory') renderInventory();
+  if (tabId === 'shopping')  renderShopping();
   if (tabId === 'insights')  renderInsights();
 }
 
@@ -147,5 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initRecommendations();
   initBarcodeScanner((itemId, prefill) => openItemModal(itemId, prefill));
   initInsights();
+  initShopping();
   showTab('inventory');
 });
