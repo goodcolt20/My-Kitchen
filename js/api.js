@@ -84,14 +84,16 @@ async function scanReceipt(imageFile) {
     "qty": "1",
     "unit": "each",
     "price": "3.49",
-    "category": "produce|dairy|meat|bakery|frozen|beverages|pantry|household|other",
-    "expirationDate": null
+    "category": "produce|dairy|meat|bakery|frozen|beverages|pantry|other",
+    "expirationDate": null,
+    "include": "yes"
   }
 ]
 Rules:
 - "price" is the total line-item price for this item as it appears on the receipt (e.g. "3.49"). Use null if not visible.
 - "qty" is the quantity purchased. Use "each" unit for countable items. Use common units (lbs, oz, gal, L, kg) when visible.
 - If no quantity is visible use "1".
+- "include": set to "yes" for clear food/drink items, "no" for clear non-food items (cleaning supplies, paper products, toiletries, pet supplies, batteries, etc.), and "ask" if you are unsure whether it belongs in a food pantry (e.g. vitamins, supplements, baby food, protein powder, cooking spray, foil, parchment paper).
 Return only the JSON array, no other text.`,
           },
         ],

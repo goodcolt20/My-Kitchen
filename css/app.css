@@ -387,6 +387,7 @@ body {
 .parsed-item label { display: flex; flex-direction: column; gap: 2px; cursor: pointer; flex: 1; }
 .parsed-name { font-weight: 600; font-size: 0.92rem; }
 .parsed-meta { font-size: 0.78rem; color: var(--text-muted); }
+.parsed-section-label { font-size: 0.78rem; font-weight: 600; color: var(--amber, #b45309); text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 0 4px; }
 
 .scan-actions {
   display: flex;
