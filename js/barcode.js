@@ -1,13 +1,11 @@
+import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
+
 const OFF_API = 'https://world.openfoodfacts.org/api/v2/product';
 
 let cameraStream = null;
-let detector = null;
+let zxingReader  = null;
 let stopScanLoop = null;
 let foundProduct = null;
-
-function isBarcodeSupported() {
-  return 'BarcodeDetector' in window;
-}
 
 function hasCameraSupport() {
   return !!(navigator.mediaDevices?.getUserMedia);
@@ -74,31 +72,22 @@ function stopCamera() {
 }
 
 function startScanLoop(videoEl, onDetected) {
-  if (!isBarcodeSupported()) return;
-  if (!detector) {
-    detector = new BarcodeDetector({
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'],
-    });
-  }
+  if (!zxingReader) zxingReader = new BrowserMultiFormatReader();
 
   let active = true;
-  stopScanLoop = () => { active = false; };
-
-  const loop = async () => {
-    if (!active) return;
-    if (videoEl.readyState >= 2) {
-      try {
-        const codes = await detector.detect(videoEl);
-        if (codes.length > 0 && active) {
-          active = false;
-          onDetected(codes[0].rawValue);
-          return;
-        }
-      } catch { /* detection errors are non-fatal */ }
-    }
-    if (active) requestAnimationFrame(loop);
+  stopScanLoop = () => {
+    active = false;
+    zxingReader.reset();
   };
-  requestAnimationFrame(loop);
+
+  zxingReader.decodeFromVideoElement(videoEl, (result, err) => {
+    if (!active) return;
+    if (result) {
+      active = false;
+      onDetected(result.getText());
+    }
+    // err is set on every frame that has no barcode — not a real error
+  });
 }
 
 function initBarcodeScanner(openItemModal) {
@@ -152,7 +141,7 @@ function initBarcodeScanner(openItemModal) {
   }
 
   async function beginCamera() {
-    if (!isBarcodeSupported() || !hasCameraSupport()) {
+    if (!hasCameraSupport()) {
       cameraSection.hidden = true;
       unsupportedSection.hidden = false;
       return;
@@ -161,7 +150,11 @@ function initBarcodeScanner(openItemModal) {
     unsupportedSection.hidden = true;
     setStatus('Starting camera…');
     try {
-      await startCamera(video);
+      // Request camera permission and attach stream to video element
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
+      });
+      video.srcObject = cameraStream;
       setStatus('');
       startScanLoop(video, async (code) => {
         stopCamera();
