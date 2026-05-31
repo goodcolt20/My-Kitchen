@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v8';
+const CACHE_VERSION = 'v9';
 const CACHE_NAME = `my-kitchen-${CACHE_VERSION}`;
 const APP_SHELL = [
   '/',

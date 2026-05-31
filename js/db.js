@@ -135,6 +135,15 @@ export function getItemsSortedByAge() {
   });
 }
 
+export function getItemsSortedByExpiry() {
+  return [..._items].sort((a, b) => {
+    if (!a.expirationDate && !b.expirationDate) return 0;
+    if (!a.expirationDate) return 1;
+    if (!b.expirationDate) return -1;
+    return new Date(a.expirationDate) - new Date(b.expirationDate);
+  });
+}
+
 export async function migrateLocalToSupabase() {
   if (!isReady()) return 0;
   const local = loadLocalItems();
