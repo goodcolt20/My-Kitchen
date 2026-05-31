@@ -261,13 +261,17 @@ ${inventoryText}`,
   }
 }
 
-async function getShoppingSuggestions(items) {
+async function getShoppingSuggestions(items, shoppingList = []) {
   const key = getApiKey();
   if (!key) throw new Error('NO_KEY');
 
   const inventory = items.length
     ? items.map((i) => `- ${i.name}: ${i.qty} ${i.unit}${i.expirationDate ? `, expires ${i.expirationDate}` : ''}`).join('\n')
     : '(pantry is empty)';
+
+  const alreadyOn = shoppingList.length
+    ? `\nAlready on the shopping list (do NOT suggest these):\n${shoppingList.map((i) => `- ${i.name}`).join('\n')}`
+    : '';
 
   const payload = {
     model: MODEL,
@@ -277,7 +281,7 @@ async function getShoppingSuggestions(items) {
       content: `You are a helpful kitchen assistant. Based on the pantry inventory below, suggest 6–8 items to add to a shopping list. Prioritise: restocking items that are nearly gone or expiring soon, common staples that appear to be missing, and ingredients that would complement what's already there.
 
 Pantry:
-${inventory}
+${inventory}${alreadyOn}
 
 Return ONLY a JSON array of item name strings with no extra text. Example: ["Milk","Bread","Olive Oil"]`,
     }],
@@ -297,7 +301,8 @@ Return ONLY a JSON array of item name strings with no extra text. Example: ["Mil
   try {
     const list = extractJSON(text);
     if (!Array.isArray(list)) throw new Error('Expected array');
-    return list.map((s) => String(s).trim()).filter(Boolean);
+    const existingNames = new Set(shoppingList.map((i) => i.name.toLowerCase().trim()));
+    return list.map((s) => String(s).trim()).filter((s) => s && !existingNames.has(s.toLowerCase().trim()));
   } catch {
     throw new Error('PARSE_ERROR');
   }
