@@ -121,7 +121,7 @@ function initShopping() {
     setSuggestError('');
     setSuggestLoading(true);
     try {
-      const names = await getShoppingSuggestions(getItems());
+      const names = await getShoppingSuggestions(getItems(), getList());
       storeSuggestions(names);
       renderSuggestions();
     } catch (err) {
