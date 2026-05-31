@@ -2,27 +2,35 @@ import { scanReceipt } from './api.js';
 import { upsertByName } from './db.js';
 
 let parsedItems = [];
+let uncertainItems = [];
+
+function itemRow(item, idx, bucket, checked = true) {
+  return `
+    <div class="parsed-item" data-idx="${idx}" data-bucket="${bucket}">
+      <input type="checkbox" class="parsed-check" data-idx="${idx}" data-bucket="${bucket}" id="pc-${bucket}-${idx}" ${checked ? 'checked' : ''}>
+      <label for="pc-${bucket}-${idx}">
+        <span class="parsed-name">${escapeHtml(item.name)}</span>
+        <span class="parsed-meta">${escapeHtml(item.qty)} ${escapeHtml(item.unit)} · ${escapeHtml(item.category)}${item.price ? ` · $${parseFloat(item.price).toFixed(2)}` : ''}</span>
+      </label>
+    </div>`;
+}
 
 function renderParsedItems() {
   const list = document.getElementById('parsed-items-list');
   if (!list) return;
-  if (parsedItems.length === 0) {
-    list.innerHTML = '';
-    return;
+
+  let html = '';
+
+  if (parsedItems.length) {
+    html += parsedItems.map((item, idx) => itemRow(item, idx, 'food')).join('');
   }
-  list.innerHTML = parsedItems
-    .map(
-      (item, idx) => `
-    <div class="parsed-item" data-idx="${idx}">
-      <input type="checkbox" class="parsed-check" data-idx="${idx}" id="pc-${idx}" checked>
-      <label for="pc-${idx}">
-        <span class="parsed-name">${escapeHtml(item.name)}</span>
-        <span class="parsed-meta">${escapeHtml(item.qty)} ${escapeHtml(item.unit)} · ${escapeHtml(item.category)}${item.price ? ` · $${parseFloat(item.price).toFixed(2)}` : ''}</span>
-      </label>
-    </div>
-  `
-    )
-    .join('');
+
+  if (uncertainItems.length) {
+    html += `<div class="parsed-section-label">Not sure — add to pantry?</div>`;
+    html += uncertainItems.map((item, idx) => itemRow(item, idx, 'ask', false)).join('');
+  }
+
+  list.innerHTML = html || '';
 }
 
 function escapeHtml(str) {
@@ -75,10 +83,16 @@ function initScanner() {
     parsedItems = [];
 
     try {
-      parsedItems = await scanReceipt(file);
+      const all = await scanReceipt(file);
+      parsedItems    = all.filter((i) => i.include !== 'no' && i.include !== 'ask');
+      uncertainItems = all.filter((i) => i.include === 'ask');
+      // silently drop include==='no' items
       showSection('scan-results-section');
       renderParsedItems();
-      document.getElementById('parsed-count').textContent = `${parsedItems.length} item${parsedItems.length !== 1 ? 's' : ''} found`;
+      const foodCount = parsedItems.length;
+      const askCount  = uncertainItems.length;
+      const label = foodCount + (askCount ? ` food item${foodCount !== 1 ? 's' : ''} + ${askCount} uncertain` : ` item${foodCount !== 1 ? 's' : ''}`);
+      document.getElementById('parsed-count').textContent = `${label} found`;
     } catch (err) {
       showSection('scan-upload-section');
       if (err.message === 'NO_KEY') {
@@ -106,16 +120,17 @@ function initScanner() {
     showSection('scan-upload-section');
     if (previewImg) previewImg.hidden = true;
     parsedItems = [];
+    uncertainItems = [];
     setStatus('');
   });
 
   confirmBtn?.addEventListener('click', () => {
-    const checked = [...document.querySelectorAll('.parsed-check:checked')].map((cb) =>
-      parseInt(cb.dataset.idx)
-    );
+    const checked = [...document.querySelectorAll('.parsed-check:checked')];
     let saved = 0;
-    for (const idx of checked) {
-      const item = parsedItems[idx];
+    for (const cb of checked) {
+      const idx    = parseInt(cb.dataset.idx);
+      const bucket = cb.dataset.bucket;
+      const item   = bucket === 'ask' ? uncertainItems[idx] : parsedItems[idx];
       if (item) {
         upsertByName(item.name, item.qty, item.unit, item.purchaseDate, item.expirationDate, item.category, item.price);
         saved++;
@@ -125,6 +140,7 @@ function initScanner() {
     showSection('scan-upload-section');
     if (previewImg) previewImg.hidden = true;
     parsedItems = [];
+    uncertainItems = [];
   });
 }
 
