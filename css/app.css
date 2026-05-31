@@ -435,9 +435,29 @@ body {
   margin-bottom: 10px;
   box-shadow: var(--shadow);
 }
-.rec-title { font-weight: 700; font-size: 1rem; color: var(--green-dark); margin-bottom: 6px; }
-.rec-body { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; }
+.rec-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.rec-title { font-weight: 700; font-size: 1rem; color: var(--green-dark); }
+.rec-body { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
+.rec-tip { font-size: 0.82rem; color: var(--text-muted); font-style: italic; margin-top: 8px; }
 .recs-pre { white-space: pre-wrap; font-size: 0.88rem; line-height: 1.6; color: var(--text); }
+.recs-empty { font-size: 0.9rem; color: var(--text-muted); text-align: center; padding: 20px 0; }
+
+.reroll-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 1rem; cursor: pointer; flex-shrink: 0; line-height: 1; }
+.reroll-btn:disabled { opacity: 0.4; cursor: default; }
+.reroll-loading { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.spinner-sm { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--green-mid); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+
+.ing-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.ing-row { display: flex; align-items: baseline; gap: 6px; font-size: 0.85rem; }
+.ing-name { flex: 1; color: var(--text); }
+.ing-qty { color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
+.ing-note { font-size: 0.78rem; color: #b45309; font-style: italic; }
+.ing-badge { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; border-radius: 4px; padding: 1px 5px; flex-shrink: 0; }
+.ing-low  { background: #fef3c7; color: #92400e; }
+.ing-sub  { background: #fee2e2; color: #991b1b; }
+
+.expired-banner { background: #fee2e2; border: 1px solid #fca5a5; border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px; font-size: 0.88rem; color: #991b1b; }
+.expired-tag { font-weight: 600; margin-right: 4px; }
 
 /* ── Inventory action sheet rows ── */
 .action-row {

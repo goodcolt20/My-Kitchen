@@ -137,26 +137,50 @@ async function getMealRecommendations(inventoryItems) {
   const key = getApiKey();
   if (!key) throw new Error('NO_KEY');
 
-  // Limit to 50 oldest items to stay within context limits
-  const items = inventoryItems.slice(0, 50);
-  const inventoryText = items
-    .map((i) => `- ${i.name}: ${i.qty} ${i.unit}${i.purchaseDate ? ` (bought ${i.purchaseDate})` : ''}`)
-    .join('\n');
+  const today = new Date().toISOString().slice(0, 10);
+  const items = inventoryItems.slice(0, 60);
+  const inventoryText = items.map((i) => {
+    const exp = i.expirationDate ? `, expires ${i.expirationDate}` : '';
+    const expired = i.expirationDate && i.expirationDate < today ? ' [EXPIRED]' : '';
+    return `- ${i.name}: ${i.qty} ${i.unit}${exp}${expired}`;
+  }).join('\n');
 
   const payload = {
     model: MODEL,
-    max_tokens: 1024,
-    messages: [
-      {
-        role: 'user',
-        content: `Based on my current pantry inventory below, suggest 5 meals I can make. Prioritize using the items that have been in my pantry the longest (listed first). For each meal provide: name, a one-sentence description, and the key ingredients from my inventory it uses.
+    max_tokens: 2048,
+    messages: [{
+      role: 'user',
+      content: `You are a helpful kitchen assistant. Based on the pantry inventory below, suggest 5 practical home-cooking meals.
 
-My inventory (oldest items first):
-${inventoryText}
+Priorities:
+1. Use items expiring soonest first (not expired items — flag those separately)
+2. Account for quantity — if an ingredient is low (e.g. half a vegetable, small amount), note a suggested substitute or addition from a similar food group
+3. Do NOT use expired items in recipes — instead flag them at the top
+4. Be practical and realistic about what can actually be made
 
-Format your response as a numbered list of meals. Keep it practical and home-cooking focused.`,
-      },
-    ],
+Return ONLY a raw JSON object (no markdown) with this exact shape:
+{
+  "expired": ["item name", ...],
+  "meals": [
+    {
+      "name": "Meal Name",
+      "description": "One sentence description.",
+      "ingredients": [
+        { "name": "ingredient from pantry", "qty": "amount needed", "status": "ok|low|substitute", "note": "optional note, e.g. low — add a carrot or bell pepper" }
+      ],
+      "tip": "Optional short cooking tip or variation idea."
+    }
+  ]
+}
+
+"status" values:
+- "ok" — sufficient quantity available
+- "low" — item exists but quantity is small; include a "note" suggesting a similar ingredient to supplement
+- "substitute" — item is missing or expired; include a "note" with what to use instead
+
+Pantry inventory (soonest expiring first):
+${inventoryText}`,
+    }],
   };
 
   const res = await fetch(ANTHROPIC_API, {
@@ -172,7 +196,69 @@ Format your response as a numbered list of meals. Keep it practical and home-coo
   }
 
   const data = await res.json();
-  return data.content?.[0]?.text || '';
+  const text = data.content?.[0]?.text || '';
+  try {
+    return extractJSON(text);
+  } catch {
+    throw new Error('PARSE_ERROR');
+  }
+}
+
+async function rerollMeal(meal, inventoryItems) {
+  const key = getApiKey();
+  if (!key) throw new Error('NO_KEY');
+
+  const today = new Date().toISOString().slice(0, 10);
+  const items = inventoryItems.slice(0, 60);
+  const inventoryText = items.map((i) => {
+    const exp = i.expirationDate ? `, expires ${i.expirationDate}` : '';
+    const expired = i.expirationDate && i.expirationDate < today ? ' [EXPIRED]' : '';
+    return `- ${i.name}: ${i.qty} ${i.unit}${exp}${expired}`;
+  }).join('\n');
+
+  const payload = {
+    model: MODEL,
+    max_tokens: 1024,
+    messages: [{
+      role: 'user',
+      content: `I have this meal suggestion: "${meal.name}" — ${meal.description}
+
+Give me ONE variation on this meal using the same pantry. It should be meaningfully different (different cuisine style, cooking method, or flavor profile) but still practical.
+
+Return ONLY a raw JSON object (no markdown) with this exact shape:
+{
+  "name": "Variation Name",
+  "description": "One sentence description.",
+  "ingredients": [
+    { "name": "ingredient", "qty": "amount", "status": "ok|low|substitute", "note": "optional note" }
+  ],
+  "tip": "Optional short tip."
+}
+
+Pantry:
+${inventoryText}`,
+    }],
+  };
+
+  const res = await fetch(ANTHROPIC_API, {
+    method: 'POST',
+    headers: makeHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (res.status === 401 || res.status === 403) throw new Error('INVALID_KEY');
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`API_ERROR:${res.status}:${body}`);
+  }
+
+  const data = await res.json();
+  const text = data.content?.[0]?.text || '';
+  try {
+    return extractJSON(text);
+  } catch {
+    throw new Error('PARSE_ERROR');
+  }
 }
 
 async function getShoppingSuggestions(items) {
@@ -217,4 +303,4 @@ Return ONLY a JSON array of item name strings with no extra text. Example: ["Mil
   }
 }
 
-export { getApiKey, setApiKey, scanReceipt, getMealRecommendations, getShoppingSuggestions };
+export { getApiKey, setApiKey, scanReceipt, getMealRecommendations, rerollMeal, getShoppingSuggestions };
