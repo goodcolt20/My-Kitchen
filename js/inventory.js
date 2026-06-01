@@ -351,17 +351,8 @@ function initInventory() {
     swFace.style.transition = ''; // re-enable animation
 
     if (!swDragging) {
-      // Pure tap — if a different card was open, close it; else open edit modal
-      if (openCard && openCard !== swCard) {
-        closeOpenCard();
-      } else if (!openCard) {
-        const id = swCard.dataset.id;
-        swCard = null; swFace = null;
-        openItemModal(id);
-        return;
-      } else {
-        closeOpenCard(); // tap on already-open card closes it
-      }
+      // Pure tap — only close an open card, never open the edit modal
+      if (openCard) closeOpenCard();
       swCard = null; swFace = null;
       return;
     }
@@ -393,15 +384,6 @@ function initInventory() {
   list?.addEventListener('touchcancel', () => {
     if (swFace) { swFace.style.transition = ''; swFace.style.transform = openCard === swCard ? `translateX(-${PANEL_W}px)` : ''; }
     swCard = null; swFace = null; swDragging = false; swAxis = null;
-  });
-
-  // Mouse click (desktop) — tap on card opens edit modal
-  list?.addEventListener('click', (e) => {
-    // Ignore if a swipe action button was clicked (handled separately below)
-    if (e.target.closest('.swa-btn')) return;
-    if (openCard) { closeOpenCard(); return; }
-    const card = e.target.closest('.item-card');
-    if (card) openItemModal(card.dataset.id);
   });
 
   // Swipe action buttons (delegated)
