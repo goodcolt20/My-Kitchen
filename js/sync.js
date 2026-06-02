@@ -36,6 +36,17 @@ export async function getSession() {
 
 // ── CRUD helpers ──────────────────────────────────────────────────────────────
 
+async function withRetry(fn, retries = 2, delayMs = 2000) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    try { return await fn(); } catch (e) {
+      lastErr = e;
+      if (i < retries) await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 export async function sbList(table) {
   const { data, error } = await sb.from(table).select('*');
   if (error) throw error;
@@ -43,20 +54,26 @@ export async function sbList(table) {
 }
 
 export async function sbInsert(table, row) {
-  const { data, error } = await sb.from(table).insert(row).select().single();
-  if (error) throw error;
-  return data;
+  return withRetry(async () => {
+    const { data, error } = await sb.from(table).insert(row).select().single();
+    if (error) throw error;
+    return data;
+  });
 }
 
 export async function sbUpdate(table, id, row) {
-  const { data, error } = await sb.from(table).update(row).eq('id', id).select().single();
-  if (error) throw error;
-  return data;
+  return withRetry(async () => {
+    const { data, error } = await sb.from(table).update(row).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  });
 }
 
 export async function sbDelete(table, id) {
-  const { error } = await sb.from(table).delete().eq('id', id);
-  if (error) throw error;
+  return withRetry(async () => {
+    const { error } = await sb.from(table).delete().eq('id', id);
+    if (error) throw error;
+  });
 }
 
 // ── Real-time ─────────────────────────────────────────────────────────────────
