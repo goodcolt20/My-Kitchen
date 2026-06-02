@@ -6,10 +6,68 @@ import {
 import { getItems } from './db.js';
 import { getShoppingSuggestions } from './api.js';
 
+// Session-dismissed low stock item IDs
+const _dismissed = new Set();
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Low stock section ─────────────────────────────────────────────────────────
+function renderLowStock() {
+  const section = document.getElementById('low-stock-section');
+  const el      = document.getElementById('low-stock-list');
+  if (!section || !el) return;
+
+  const onList = new Set(getList().map((i) => i.name.toLowerCase().trim()));
+
+  const lowItems = getItems().filter((item) => {
+    if (_dismissed.has(item.id)) return false;
+    if (!item.targetQty) return false;
+    const target  = parseFloat(item.targetQty);
+    const current = parseFloat(item.qty) || 0;
+    if (isNaN(target)) return false;
+    if (current >= target) return false;
+    if (onList.has(item.name.toLowerCase().trim())) return false;
+    return true;
+  });
+
+  section.hidden = lowItems.length === 0;
+  if (lowItems.length === 0) { el.innerHTML = ''; return; }
+
+  el.innerHTML = lowItems.map((item) => {
+    const current = parseFloat(item.qty) || 0;
+    const target  = parseFloat(item.targetQty);
+    return `
+      <div class="low-stock-card" data-id="${escapeHtml(item.id)}">
+        <div class="low-stock-info">
+          <span class="low-stock-name">${escapeHtml(item.name)}</span>
+          <span class="low-stock-badge">↓ ${current} of ${target} ${escapeHtml(item.unit || '')}</span>
+        </div>
+        <div class="low-stock-actions">
+          <button class="low-stock-add btn-sm-green" data-id="${escapeHtml(item.id)}" data-name="${escapeHtml(item.name)}">+ Add to List</button>
+          <button class="low-stock-dismiss btn-sm-ghost" data-id="${escapeHtml(item.id)}" aria-label="Dismiss">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  el.querySelectorAll('.low-stock-add').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      addListItem(btn.dataset.name);
+      _dismissed.add(btn.dataset.id);
+      renderLowStock();
+      renderList();
+    });
+  });
+
+  el.querySelectorAll('.low-stock-dismiss').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      _dismissed.add(btn.dataset.id);
+      renderLowStock();
+    });
+  });
 }
 
 // ── Render your list ──────────────────────────────────────────────────────────
@@ -136,6 +194,7 @@ function initShopping() {
 }
 
 function renderShopping() {
+  renderLowStock();
   renderList();
   renderSuggestions();
 }
