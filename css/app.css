@@ -783,6 +783,32 @@ body {
 }
 .shop-add-all-btn:active { opacity: 0.85; }
 
+/* ── Low stock section ── */
+.low-stock-section { border-left: 3px solid #e07000; background: #fff8f0; }
+.low-stock-heading { color: #e07000; }
+.low-stock-card {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 10px 0;
+  border-bottom: 1px solid #fde0b0;
+}
+.low-stock-card:last-child { border-bottom: none; }
+.low-stock-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.low-stock-name { font-weight: 600; font-size: 0.92rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.low-stock-badge { font-size: 0.75rem; color: #e07000; font-weight: 600; }
+.low-stock-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.btn-sm-green {
+  font-size: 0.78rem; font-weight: 600; padding: 5px 10px;
+  background: var(--green-mid); color: #fff; border: none;
+  border-radius: 6px; cursor: pointer; white-space: nowrap;
+}
+.btn-sm-green:active { opacity: 0.85; }
+.btn-sm-ghost {
+  font-size: 0.82rem; padding: 5px 8px; background: none;
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  color: var(--text-muted);
+}
+.btn-sm-ghost:active { background: var(--border); }
+
 /* ── Action sheet ── */
 .action-sheet-handle {
   width: 36px;
