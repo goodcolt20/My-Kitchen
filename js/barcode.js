@@ -1,13 +1,8 @@
-import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
-
 const OFF_API = 'https://world.openfoodfacts.org/api/v2/product';
 
-let zxingReader  = null;
+let html5QrCode  = null;
 let foundProduct = null;
-
-function hasCameraSupport() {
-  return !!(navigator.mediaDevices?.getUserMedia);
-}
+let scanning     = false;
 
 function parseQuantity(raw) {
   if (!raw) return { qty: '1', unit: 'each' };
@@ -55,35 +50,30 @@ async function lookupBarcode(barcode) {
   };
 }
 
-function stopScanner() {
-  if (zxingReader) {
-    try { zxingReader.reset(); } catch { /* ignore */ }
-    zxingReader = null;
+async function stopScanner() {
+  scanning = false;
+  if (html5QrCode) {
+    try { await html5QrCode.stop(); } catch { /* ignore */ }
+    try { html5QrCode.clear(); } catch { /* ignore */ }
+    html5QrCode = null;
   }
 }
 
-function startScanLoop(videoEl, onDetected) {
-  zxingReader = new BrowserMultiFormatReader();
-  let detected = false;
-
-  zxingReader.decodeFromConstraints(
-    { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } } },
-    videoEl,
-    (result, err) => {
-      if (detected) return;
-      if (result) {
-        detected = true;
-        onDetected(result.getText());
-      }
-    }
-  ).catch(() => {});
+async function loadHtml5Qrcode() {
+  if (window.Html5Qrcode) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
 }
 
 function initBarcodeScanner(openItemModal) {
   const modal              = document.getElementById('barcode-modal');
   const closeBtn           = document.getElementById('barcode-close-btn');
   const triggerBtn         = document.getElementById('barcode-scan-btn');
-  const video              = document.getElementById('barcode-video');
   const cameraSection      = document.getElementById('barcode-camera-section');
   const unsupportedSection = document.getElementById('barcode-unsupported-section');
   const statusEl           = document.getElementById('barcode-status');
@@ -129,21 +119,44 @@ function initBarcodeScanner(openItemModal) {
     }
   }
 
-  function beginCamera() {
-    if (!hasCameraSupport()) {
+  async function beginCamera() {
+    cameraSection.hidden = false;
+    unsupportedSection.hidden = true;
+    setStatus('Starting camera…');
+
+    try {
+      await loadHtml5Qrcode();
+    } catch {
       cameraSection.hidden = true;
       unsupportedSection.hidden = false;
       return;
     }
-    cameraSection.hidden = false;
-    unsupportedSection.hidden = true;
-    setStatus('');
 
-    startScanLoop(video, async (code) => {
-      stopScanner();
+    // Suppress html5-qrcode's own verbose logging
+    const noop = () => {};
+    html5QrCode = new window.Html5Qrcode('barcode-reader', { verbose: false, logger: { log: noop, warn: noop, error: noop } });
+    scanning = true;
+
+    try {
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 15, qrbox: { width: 280, height: 140 }, aspectRatio: 1.5 },
+        async (decodedText) => {
+          if (!scanning) return;
+          await stopScanner();
+          cameraSection.hidden = true;
+          setStatus('');
+          await doLookup(decodedText);
+        },
+        () => { /* per-frame error — no barcode found, ignore */ }
+      );
+      setStatus('');
+    } catch {
+      await stopScanner();
       cameraSection.hidden = true;
-      await doLookup(code);
-    });
+      unsupportedSection.hidden = false;
+      setStatus('Camera access denied. Enter barcode manually.', 'error');
+    }
   }
 
   function openModal() {
@@ -153,8 +166,8 @@ function initBarcodeScanner(openItemModal) {
     beginCamera();
   }
 
-  function closeModal() {
-    stopScanner();
+  async function closeModal() {
+    await stopScanner();
     modal.classList.remove('open');
   }
 
@@ -168,16 +181,16 @@ function initBarcodeScanner(openItemModal) {
   });
   manualInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') lookupBtn.click(); });
 
-  scanAgainBtn?.addEventListener('click', () => {
+  scanAgainBtn?.addEventListener('click', async () => {
     clearResult();
     manualInput.value = '';
     cameraSection.hidden = false;
-    beginCamera();
+    await beginCamera();
   });
 
-  addBtn?.addEventListener('click', () => {
+  addBtn?.addEventListener('click', async () => {
     if (!foundProduct) return;
-    closeModal();
+    await closeModal();
     openItemModal(null, foundProduct);
   });
 }
