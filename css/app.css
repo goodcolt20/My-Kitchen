@@ -913,6 +913,13 @@ body {
   object-fit: cover;
   display: block;
 }
+/* html5-qrcode injects its own elements — make them fill the viewfinder */
+#barcode-reader { width: 100%; height: 100%; }
+#barcode-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+/* Hide html5-qrcode's own scan box overlay and header — we use our own guides */
+#barcode-reader__scan_region { display: none !important; }
+#barcode-reader__header_message { display: none !important; }
+#barcode-reader__dashboard { display: none !important; }
 .barcode-guide {
   position: absolute;
   inset: 0;
