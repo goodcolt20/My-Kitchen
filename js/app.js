@@ -3,7 +3,7 @@ import { initScanner } from './scanner.js';
 import { initRecommendations } from './recommendations.js';
 import { getApiKey, setApiKey } from './api.js';
 import { initBarcodeScanner } from './barcode.js';
-import { getCategories, saveCategories, resetCategories } from './categories.js';
+import { getCategories, saveCategories, resetCategories, initCategories } from './categories.js';
 import { initInsights, renderInsights } from './insights.js';
 import { initShopping, renderShopping } from './shoppingui.js';
 import { initSync, isReady, signIn, signOut, getSession, sbList } from './sync.js';
@@ -214,6 +214,7 @@ async function bootApp() {
   setShoppingSyncErrorHandler(onSyncErr);
 
   await Promise.all([
+    initCategories(rerender),
     initDb(rerender, onSyncErr),
     initHistory(rerender, onSyncErr),
     initShoppingData(rerender, onSyncErr),
