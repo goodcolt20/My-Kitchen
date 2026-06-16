@@ -1,3 +1,2 @@
 # My-Kitchen
-Inventory and recipes
 I created a PWA to solve the problem of inefficient grocery runs and wasted food. It allows me to maintain inventory, make a grocery list, generate meal ideas, and even track food cost. It focuses on expiration dates and using the oldest foods first. On the backend, it has a postgres database hosted on supabase to automatically sync between users so everyone has the current inventory and list.
